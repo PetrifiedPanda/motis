@@ -33,7 +33,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(MOTIS_AVX "enable AVX functions" ON)
 
-option(MOTIS_CUDA "enable CUDA functions" OFF)
+option(MOTIS_CUDA "enable CUDA functions" ON)
 if (MOTIS_CUDA)
   set(MOTIS_CUDA_ARCH "-gencode arch=compute_75,code=sm_75 -gencode arch=compute_61,code=sm_61")
   if (MSVC)
