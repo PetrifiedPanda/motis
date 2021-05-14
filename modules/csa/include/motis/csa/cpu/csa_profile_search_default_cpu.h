@@ -164,12 +164,14 @@ struct csa_profile_search {
                                                         std::vector<std::list<std::pair<time, std::array<time, MAX_TRANSFERS + 1>>>> const& arrival_time) {
     // TODO
     // what do they mean by evaluate S at c_arr_time
+    (void) con;
+    (void) arrival_time;
     return array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID);
   }
 
   void search_with_target_station(csa_station const& target_station,
-                                  std::vector<csa_connection>::const_reverse_iterator range_start,
-                                  std::vector<csa_connection>::const_reverse_iterator range_end) {
+                                  std::vector<csa_connection>::const_reverse_iterator const& range_start,
+                                  std::vector<csa_connection>::const_reverse_iterator const& range_end) {
     auto const target_id = target_station.id_;
     auto& arrival_time = arrival_time_[target_id];
     auto& trip_reachable = trip_reachable_[target_id];
