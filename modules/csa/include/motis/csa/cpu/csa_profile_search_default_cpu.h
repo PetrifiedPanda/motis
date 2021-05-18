@@ -25,17 +25,18 @@ struct csa_profile_search {
 
   template <typename T>
   using vec_of_vec = std::vector<std::vector<T>>;
+  using arrival_times = std::array<time, MAX_TRANSFERS + 1>;
 
   csa_profile_search(csa_timetable const& tt, interval const& search_interval,
                      csa_statistics& stats)
       : tt_{tt},
         search_interval_{search_interval},
         arrival_time_(tt.stations_.size(),
-                      std::vector<std::list<std::pair<time, std::array<time, MAX_TRANSFERS + 1>>>>(
+                      std::vector<std::list<std::pair<time, arrival_times>>>(
                           tt.stations_.size(),
-                          {std::make_pair(INVALID, array_maker<time,MAX_TRANSFERS + 1>::make_array(INVALID))})),
+                          {std::make_pair(INVALID,array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID))})),
         trip_reachable_(tt.stations_.size(),
-                        std::vector<std::array<time, MAX_TRANSFERS + 1>>(
+                        std::vector<arrival_times>(
                             tt.trip_count_,
                             array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID))),
         final_footpaths_(tt.stations_.size(),
@@ -86,7 +87,8 @@ struct csa_profile_search {
     });
   }
 
-  static bool connection_comparator(csa_connection const& a, csa_connection const& b) {
+  static bool connection_comparator(csa_connection const& a,
+                                    csa_connection const& b) {
     if constexpr (Dir == search_dir::FWD) {
       return a.departure_ < b.departure_;
     } else {
@@ -94,7 +96,8 @@ struct csa_profile_search {
     }
   }
 
-  static bool connection_comparator_complement(csa_connection const& a, csa_connection const& b) {
+  static bool connection_comparator_complement(csa_connection const& a,
+                                               csa_connection const& b) {
     return !connection_comparator(a, b);
   }
 
@@ -103,10 +106,10 @@ struct csa_profile_search {
    * that implements these operations
    */
 
-  static std::array<time, MAX_TRANSFERS + 1> arr_min(std::array<time, MAX_TRANSFERS + 1> const& arr1,
-                                                     std::array<time, MAX_TRANSFERS + 1> const& arr2,
-                                                     std::array<time, MAX_TRANSFERS + 1> const& arr3 = array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID)) {
-    auto result = std::array<time, MAX_TRANSFERS + 1>();
+  static arrival_times arr_min(arrival_times const& arr1,
+                               arrival_times const& arr2,
+                               arrival_times const& arr3 = array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID)) {
+    auto result = arrival_times();
     for (auto i = 0; i < result.size(); ++i) {
       if constexpr (Dir == search_dir::FWD) {
         result[i] = std::min(std::min(arr1[i], arr2[i]), arr3[i]);
@@ -118,7 +121,7 @@ struct csa_profile_search {
     return result;
   }
 
-  static std::array<time, MAX_TRANSFERS + 1> arr_shift(std::array<time, MAX_TRANSFERS + 1> const& arr) {
+  static arrival_times arr_shift(arrival_times const& arr) {
     auto result = array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID);
     for (auto i = 1; i < result.size(); ++i) {
       result[i] = arr[i - 1];
@@ -127,14 +130,14 @@ struct csa_profile_search {
     return result;
   }
 
-  static void arr_copy(std::array<time, MAX_TRANSFERS + 1>& to, std::array<time, MAX_TRANSFERS + 1> const& from) {
+  static void arr_copy(arrival_times& to, arrival_times const& from) {
     for (auto i = 0; i < to.size(); ++i) {
       to[i] = from[i];
     }
   }
 
-  static bool arr_equals(std::array<time, MAX_TRANSFERS + 1> const& arr1,
-                         std::array<time, MAX_TRANSFERS + 1> const& arr2) {
+  static bool arr_equals(arrival_times const& arr1,
+                         arrival_times const& arr2) {
     for (auto i = 0; i < arr1.size(); ++i) {
       if (arr1[i] != arr2[i]) {
         return false;
@@ -144,8 +147,8 @@ struct csa_profile_search {
     return true;
   }
 
-  std::array<time, MAX_TRANSFERS + 1> get_time_walking(csa_connection const& con,
-                                                       std::vector<time> const& final_footpaths) const {
+  static arrival_times get_time_walking(csa_connection const& con,
+                                        std::vector<time> const& final_footpaths) {
     auto time_walking = INVALID;
     if constexpr (Dir == search_dir::FWD) {
       if (final_footpaths[con.to_station_] != INVALID) {
@@ -160,8 +163,8 @@ struct csa_profile_search {
     return array_maker<time, MAX_TRANSFERS + 1>::make_array(time_walking);
   }
 
-  std::array<time, MAX_TRANSFERS + 1> get_time_transfer(csa_connection const& con,
-                                                        std::vector<std::list<std::pair<time, std::array<time, MAX_TRANSFERS + 1>>>> const& arrival_time) {
+  arrival_times get_time_transfer(csa_connection const& con,
+                                  std::vector<std::list<std::pair<time, arrival_times>>> const& arrival_time) {
     // TODO
     // what do they mean by evaluate S at c_arr_time
     (void) con;
@@ -235,7 +238,8 @@ struct csa_profile_search {
       search_with_target_station(target_station, range_start, range_end);
     }
 
-    reset_final_footpaths(); // B: this may not be necessary if instances are only used once
+    // B: this may not be necessary if instances are only used once
+    reset_final_footpaths();
   }
 
   std::vector<csa_journey> get_results(csa_station const& station,
@@ -251,9 +255,9 @@ struct csa_profile_search {
   interval search_interval_;
 
   // TODO: Time this with different container types when the algorithms work
-  vec_of_vec<std::list<std::pair<time, std::array<time, MAX_TRANSFERS + 1>>>> arrival_time_;
+  vec_of_vec<std::list<std::pair<time, arrival_times>>> arrival_time_;
 
-  vec_of_vec<std::array<time, MAX_TRANSFERS + 1>> trip_reachable_; // TODO: rename?
+  vec_of_vec<arrival_times> trip_reachable_; // TODO: rename?
 
   vec_of_vec<time> final_footpaths_;
 
