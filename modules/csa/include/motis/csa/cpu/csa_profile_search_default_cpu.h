@@ -83,7 +83,10 @@ struct csa_profile_search {
   }
 
   void reset_final_footpaths() {
-    set_final_footpaths([](footpath const& fp) { return INVALID; });
+    set_final_footpaths([](footpath const& fp) {
+      (void)fp;
+      return INVALID;
+    });
   }
 
   static bool connection_comparator(csa_connection const& a,
