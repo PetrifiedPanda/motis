@@ -1,9 +1,9 @@
 #pragma once
 
-#include <limits>
-#include <vector>
-#include <list>
 #include <array>
+#include <limits>
+#include <list>
+#include <vector>
 
 #include "utl/verify.h"
 
@@ -31,17 +31,20 @@ struct csa_profile_search {
                      csa_statistics& stats)
       : tt_{tt},
         search_interval_{search_interval},
-        arrival_time_(tt.stations_.size(),
-                      std::vector<std::list<std::pair<time, arrival_times>>>(
-                          tt.stations_.size(),
-                          {std::make_pair(INVALID,array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID))})),
-        trip_reachable_(tt.stations_.size(),
-                        std::vector<arrival_times>(
-                            tt.trip_count_,
-                            array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID))),
+        arrival_time_(
+            tt.stations_.size(),
+            std::vector<std::list<std::pair<time, arrival_times>>>(
+                tt.stations_.size(),
+                {std::make_pair(
+                    INVALID, array_maker<time, MAX_TRANSFERS + 1>::make_array(
+                                 INVALID))})),
+        trip_reachable_(
+            tt.stations_.size(),
+            std::vector<arrival_times>(
+                tt.trip_count_,
+                array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID))),
         final_footpaths_(tt.stations_.size(),
-                         std::vector<time>(tt.stations_.size(), INVALID)
-                         ),
+                         std::vector<time>(tt.stations_.size(), INVALID)),
         stats_{stats} {}
 
   void add_start(csa_station const& station, time initial_duration) {
@@ -76,15 +79,11 @@ struct csa_profile_search {
   }
 
   void set_final_footpaths() {
-    set_final_footpaths([](footpath const& fp) {
-      return fp.duration_;
-    });
+    set_final_footpaths([](footpath const& fp) { return fp.duration_; });
   }
 
   void reset_final_footpaths() {
-    set_final_footpaths([](footpath const& fp) {
-      return INVALID;
-    });
+    set_final_footpaths([](footpath const& fp) { return INVALID; });
   }
 
   static bool connection_comparator(csa_connection const& a,
@@ -106,15 +105,17 @@ struct csa_profile_search {
    * that implements these operations
    */
 
-  static arrival_times arr_min(arrival_times const& arr1,
-                               arrival_times const& arr2,
-                               arrival_times const& arr3 = array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID)) {
+  static arrival_times arr_min(
+      arrival_times const& arr1, arrival_times const& arr2,
+      arrival_times const& arr3 =
+          array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID)) {
     auto result = arrival_times();
     for (auto i = 0; i < result.size(); ++i) {
       if constexpr (Dir == search_dir::FWD) {
         result[i] = std::min(std::min(arr1[i], arr2[i]), arr3[i]);
       } else {
-        result[i] = std::max(std::max(arr1[i], arr2[i]), arr3[i]); // B: not sure if this is correct
+        result[i] = std::max(std::max(arr1[i], arr2[i]),
+                             arr3[i]);  // B: not sure if this is correct
       }
     }
 
@@ -136,8 +137,7 @@ struct csa_profile_search {
     }
   }
 
-  static bool arr_equals(arrival_times const& arr1,
-                         arrival_times const& arr2) {
+  static bool arr_equals(arrival_times const& arr1, arrival_times const& arr2) {
     for (auto i = 0; i < arr1.size(); ++i) {
       if (arr1[i] != arr2[i]) {
         return false;
@@ -147,8 +147,8 @@ struct csa_profile_search {
     return true;
   }
 
-  static arrival_times get_time_walking(csa_connection const& con,
-                                        std::vector<time> const& final_footpaths) {
+  static arrival_times get_time_walking(
+      csa_connection const& con, std::vector<time> const& final_footpaths) {
     auto time_walking = INVALID;
     if constexpr (Dir == search_dir::FWD) {
       if (final_footpaths[con.to_station_] != INVALID) {
@@ -156,25 +156,40 @@ struct csa_profile_search {
       }
     } else {
       if (final_footpaths[con.from_station_] != INVALID) {
-        time_walking = con.departure_ - final_footpaths[con.from_station_]; // should this be a -?
+        time_walking =
+            con.departure_ -
+            final_footpaths[con.from_station_];  // should this be a -?
       }
     }
 
     return array_maker<time, MAX_TRANSFERS + 1>::make_array(time_walking);
   }
 
-  arrival_times get_time_transfer(csa_connection const& con,
-                                  std::vector<std::list<std::pair<time, arrival_times>>> const& arrival_time) {
+  arrival_times get_time_transfer(
+      csa_connection const& con,
+      std::vector<std::list<std::pair<time, arrival_times>>> const&
+          arrival_time) {
     // TODO
     // what do they mean by evaluate S at c_arr_time
-    (void) con;
-    (void) arrival_time;
+    // B: These might be the other way round
+    auto const& station =
+        Dir == search_dir::FWD ? con.to_station_ : con.from_station_;
+    auto const compare_time =
+        Dir == search_dir::FWD ? con.arrival_ : con.departure_;
+
+    if (arrival_time[station].front().first == compare_time) {
+      // compare second parameters
+    } else {
+      // arrival time can only be smaller than earliest
+    }
+    (void)arrival_time;
     return array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID);
   }
 
-  void search_with_target_station(csa_station const& target_station,
-                                  std::vector<csa_connection>::const_reverse_iterator const& range_start,
-                                  std::vector<csa_connection>::const_reverse_iterator const& range_end) {
+  void search_with_target_station(
+      csa_station const& target_station,
+      std::vector<csa_connection>::const_reverse_iterator const& range_start,
+      std::vector<csa_connection>::const_reverse_iterator const& range_end) {
     auto const target_id = target_station.id_;
     auto& arrival_time = arrival_time_[target_id];
     auto& trip_reachable = trip_reachable_[target_id];
@@ -189,25 +204,28 @@ struct csa_profile_search {
 
       auto const best_time = arr_min(time_walking, time_trip, time_transfer);
 
-      auto const y = Dir == search_dir::FWD // TODO: Name
-                   ? arrival_time[con.from_station_].front().second
-                   : arrival_time[con.to_station_].front().second;
+      auto const y = Dir == search_dir::FWD  // TODO: Name
+                         ? arrival_time[con.from_station_].front().second
+                         : arrival_time[con.to_station_].front().second;
 
       auto best_of_both = arr_min(best_time, y);
 
       // This is probably not correct
       if (!arr_equals(y, best_of_both)) {
-        auto const& footpaths = Dir == search_dir::FWD
-                             ? tt_.stations_[con.to_station_].incoming_footpaths_
-                             : tt_.stations_[con.from_station_].footpaths_;
+        auto const& footpaths =
+            Dir == search_dir::FWD
+                ? tt_.stations_[con.to_station_].incoming_footpaths_
+                : tt_.stations_[con.from_station_].footpaths_;
         for (auto const& fp : footpaths) {
           // what does "incorporate into profile" mean?
           if constexpr (Dir == search_dir::FWD) {
             auto const arrival = con.departure_ - fp.duration_;
-            arrival_time[con.from_station_].push_front(std::make_pair(arrival, best_of_both));
+            arrival_time[con.from_station_].push_front(
+                std::make_pair(arrival, best_of_both));
           } else {
             auto const arrival = con.arrival_ + fp.duration_;
-            arrival_time[con.to_station_].push_front(std::make_pair(arrival, best_of_both));
+            arrival_time[con.to_station_].push_front(
+                std::make_pair(arrival, best_of_both));
           }
         }
       }
@@ -225,13 +243,13 @@ struct csa_profile_search {
     csa_connection const earliest_possible_con{search_interval_.begin_};
     csa_connection const latest_possible_con{search_interval_.end_};
 
-    auto const range_start = std::lower_bound(
-        rbegin(connections), rend(connections),
-        latest_possible_con, connection_comparator_complement);
+    auto const range_start =
+        std::lower_bound(rbegin(connections), rend(connections),
+                         latest_possible_con, connection_comparator_complement);
 
     auto const range_end = std::upper_bound(
-        rbegin(connections), rend(connections),
-        earliest_possible_con, connection_comparator_complement);
+        rbegin(connections), rend(connections), earliest_possible_con,
+        connection_comparator_complement);
 
     // Run the algorithm with each station as target station (probably too slow)
     for (auto const& target_station : tt_.stations_) {
@@ -255,9 +273,11 @@ struct csa_profile_search {
   interval search_interval_;
 
   // TODO: Time this with different container types when the algorithms work
+  // The pairs should be sorted by departure time in the algorithm, because the
+  // connections are traversed by decreasing departure time
   vec_of_vec<std::list<std::pair<time, arrival_times>>> arrival_time_;
 
-  vec_of_vec<arrival_times> trip_reachable_; // TODO: rename?
+  vec_of_vec<arrival_times> trip_reachable_;  // TODO: rename?
 
   vec_of_vec<time> final_footpaths_;
 
