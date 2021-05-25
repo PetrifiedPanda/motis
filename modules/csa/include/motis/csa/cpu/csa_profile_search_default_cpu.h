@@ -147,6 +147,43 @@ struct csa_profile_search {
     return true;
   }
 
+  static bool dominates(std::pair<time, arrival_times> const& x,
+                        std::pair<time, arrival_times> const& y) {
+    if constexpr (Dir == search_dir::FWD) {
+      if (y.first >= x.first) {
+        // maybe this can be simplified to a range-based for loop
+        for (auto i = 0; i < x.second.size(); ++i) {
+          if (y.second[i] < x.second[i]) {
+            return false;
+          }
+        }
+
+        return true;
+      }
+    } else {
+      if (y.first <= x.first) {
+        // see comment above
+        for (auto i = 0; i < x.second.size(); ++i) {
+          if (y.second[i] > x.second[i]) {
+            return false;
+          }
+        }
+
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool is_dominated_in(
+      std::pair<time, arrival_times> const& pair,
+      std::list<std::pair<time, arrival_times>> const& list) {
+    return std::any_of(list.begin(), list.end(), [&](auto const& other) {
+      return dominates(other, pair);
+    });
+  }
+
   static arrival_times get_time_walking(
       csa_connection const& con, std::vector<time> const& final_footpaths) {
     auto time_walking = INVALID;
@@ -156,9 +193,7 @@ struct csa_profile_search {
       }
     } else {
       if (final_footpaths[con.from_station_] != INVALID) {
-        time_walking =
-            con.departure_ -
-            final_footpaths[con.from_station_];  // should this be a -?
+        time_walking = con.departure_ - final_footpaths[con.from_station_];
       }
     }
 
@@ -169,19 +204,10 @@ struct csa_profile_search {
       csa_connection const& con,
       std::vector<std::list<std::pair<time, arrival_times>>> const&
           arrival_time) {
-    // TODO
+    // TODO(root)
     // what do they mean by evaluate S at c_arr_time
-    // B: These might be the other way round
-    auto const& station =
-        Dir == search_dir::FWD ? con.to_station_ : con.from_station_;
-    auto const compare_time =
-        Dir == search_dir::FWD ? con.arrival_ : con.departure_;
 
-    if (arrival_time[station].front().first == compare_time) {
-      // compare second parameters
-    } else {
-      // arrival time can only be smaller than earliest
-    }
+    (void)con;
     (void)arrival_time;
     return array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID);
   }
@@ -204,7 +230,7 @@ struct csa_profile_search {
 
       auto const best_time = arr_min(time_walking, time_trip, time_transfer);
 
-      auto const y = Dir == search_dir::FWD  // TODO: Name
+      auto const y = Dir == search_dir::FWD  // TODO(root): rename
                          ? arrival_time[con.from_station_].front().second
                          : arrival_time[con.to_station_].front().second;
 
@@ -272,12 +298,12 @@ struct csa_profile_search {
   csa_timetable const& tt_;
   interval search_interval_;
 
-  // TODO: Time this with different container types when the algorithms work
-  // The pairs should be sorted by departure time in the algorithm, because the
-  // connections are traversed by decreasing departure time
+  // TODO(root): Time with different container types when the algorithm works
+  // The pairs should be sorted by departure time in the algorithm,
+  // because the connections are traversed by decreasing departure time
   vec_of_vec<std::list<std::pair<time, arrival_times>>> arrival_time_;
 
-  vec_of_vec<arrival_times> trip_reachable_;  // TODO: rename?
+  vec_of_vec<arrival_times> trip_reachable_;
 
   vec_of_vec<time> final_footpaths_;
 
