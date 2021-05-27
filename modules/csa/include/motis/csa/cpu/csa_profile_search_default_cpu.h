@@ -206,13 +206,15 @@ struct csa_profile_search {
       for (auto const& fp : station.incoming_footpaths_) {
         auto const new_pair =
             std::make_pair(station_arrival - fp.duration_, best_arrival_times);
-        // TODO(root) insert into arrival_time[con.from_station_]
+        (void)new_pair;
+        // TODO(root) insert into arrival_time_[station.id_]
       }
     } else {
       for (auto const& fp : station.footpaths_) {
         auto const new_pair =
             std::make_pair(station_arrival + fp.duration_, best_arrival_times);
-        // TODO(root) insert into arrival_time[con.to_station_]
+        (void)new_pair;
+        // TODO(root) insert into arrival_time_[station.id_]
       }
     }
   }
