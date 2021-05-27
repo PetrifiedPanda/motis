@@ -179,6 +179,16 @@ struct pretrip_profile_search {
       csa.add_start(tt_.stations_.at(start_idx), 0);
     }
 
+    // workaround for only csa_profile_search having add_dest() method
+    if constexpr (std::is_same<CSASearch, motis::csa::cpu::csa_profile_search<
+                                              search_dir::FWD>>::value ||
+                  std::is_same<CSASearch, motis::csa::cpu::csa_profile_search<
+                                              search_dir::BWD>>::value) {
+      for (auto const& end_idx : q_.meta_dests_) {
+        csa.add_dest(tt_.stations_.at(end_idx));
+      }
+    }
+
     MOTIS_START_TIMING(search_timing);
     csa.search();
     MOTIS_STOP_TIMING(search_timing);
