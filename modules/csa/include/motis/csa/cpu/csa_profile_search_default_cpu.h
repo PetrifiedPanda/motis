@@ -192,12 +192,24 @@ struct csa_profile_search {
     return array_maker<time, MAX_TRANSFERS + 1>::make_array(time_walking);
   }
 
-  arrival_times get_time_transfer(csa_connection const& con) {
-    // TODO(root)
-    // what do they mean by evaluate S at c_arr_time
-
-    (void)con;
-    return array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID);
+  const arrival_times& get_time_transfer(csa_connection const& con) {
+    // find the first pair that departs after station arrival
+    auto const station_id =
+        Dir == search_dir::FWD ? con.to_station_ : con.from_station_;
+    // B: is transfer_time_ the footpath to itself?
+    auto const transfer_time = tt_.stations_[station_id].transfer_time_;
+    auto const& list = arrival_time_[station_id];
+    auto const limit = Dir == search_dir::FWD ? con.arrival_ + transfer_time
+                                              : con.departure_ - transfer_time;
+    auto it = std::lower_bound(list.begin(), list.end(), limit,
+                               [](auto const& p, auto const& t) {
+                                 if constexpr (Dir == search_dir::FWD) {
+                                   return p.first < t;
+                                 } else {
+                                   return p.first > t;
+                                 }
+                               });
+    return it->second;
   }
 
   void expand_footpaths(csa_station const& station, time station_arrival,
@@ -241,7 +253,7 @@ struct csa_profile_search {
 
       auto const time_walking = get_time_walking(con);
       auto const time_trip = trip_reachable_[con.trip_];
-      auto const time_transfer = get_time_transfer(con);
+      auto const time_transfer = arr_shift(get_time_transfer(con));
 
       auto const best_arrival_times =
           arr_min(time_walking, time_trip, time_transfer);
@@ -253,7 +265,6 @@ struct csa_profile_search {
           Dir == search_dir::FWD ? con.from_station_ : con.to_station_;
 
       if (!is_dominated_in(best_pair, arrival_time_[to_index])) {
-        // B: put this in expand_footpaths()?
         auto const& station = Dir == search_dir::FWD
                                   ? tt_.stations_[con.from_station_]
                                   : tt_.stations_[con.to_station_];
