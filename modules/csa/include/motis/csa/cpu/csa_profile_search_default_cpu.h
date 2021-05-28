@@ -74,19 +74,8 @@ struct csa_profile_search {
     }
   }
 
-  static bool connection_is_earlier(csa_connection const& a,
-                                    csa_connection const& b) {
-    if constexpr (Dir == search_dir::FWD) {
-      return a.departure_ < b.departure_;
-    } else {
-      return a.arrival_ > b.arrival_;
-    }
-  }
-
-  // This should probably not be the exact complement
   static bool connection_is_later(csa_connection const& a,
                                   csa_connection const& b) {
-    // return !connection_is_earlier(a, b);
     if constexpr (Dir == search_dir::FWD) {
       return a.departure_ > b.departure_;
     } else {
@@ -99,10 +88,9 @@ struct csa_profile_search {
    * that implements these operations
    */
 
-  static arrival_times arr_min(
-      arrival_times const& arr1, arrival_times const& arr2,
-      arrival_times const& arr3 =
-          array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID)) {
+  static arrival_times arr_min(arrival_times const& arr1,
+                               arrival_times const& arr2,
+                               arrival_times const& arr3) {
     auto result = arrival_times();
     for (auto i = 0; i < result.size(); ++i) {
       if constexpr (Dir == search_dir::FWD) {
@@ -122,22 +110,6 @@ struct csa_profile_search {
     }
 
     return result;
-  }
-
-  static void arr_copy(arrival_times& to, arrival_times const& from) {
-    for (auto i = 0; i < to.size(); ++i) {
-      to[i] = from[i];
-    }
-  }
-
-  static bool arr_equals(arrival_times const& arr1, arrival_times const& arr2) {
-    for (auto i = 0; i < arr1.size(); ++i) {
-      if (arr1[i] != arr2[i]) {
-        return false;
-      }
-    }
-
-    return true;
   }
 
   static bool dominates(std::pair<time, arrival_times> const& x,
@@ -273,7 +245,7 @@ struct csa_profile_search {
         expand_footpaths(station, station_arrival, best_arrival_times);
       }
 
-      arr_copy(trip_reachable_[con.trip_], best_arrival_times);
+      trip_reachable_[con.trip_] = best_arrival_times;
     }
   }
 
