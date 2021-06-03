@@ -184,21 +184,56 @@ struct csa_profile_search {
     return it->second;
   }
 
+  template <typename Cont, typename T, typename Comp>
+  auto get_insert_location(Cont const& cont, T const& item, Comp comp) {
+    // we might need to find the first with equal departure time to item
+    return std::upper_bound(cont.begin(), cont.end(), item, comp);
+  }
+
+  static bool pair_comparator(std::pair<time, arrival_times> const& p1,
+                              std::pair<time, arrival_times> const& p2) {
+    if constexpr (Dir == search_dir::FWD) {
+      return p1.first < p2.first;
+    } else {
+      return p1.first > p2.first;
+    }
+  }
+
+  void insert_into_arrival_times(std::pair<time, arrival_times> const& new_pair,
+                                 csa_station const& station) {
+    auto& arrival_time = arrival_time_[station.id_];
+    auto const insert_loc =
+        get_insert_location(arrival_time, new_pair, pair_comparator);
+    arrival_time.insert(insert_loc, new_pair);
+    /*
+    Either the domination function is wrong, or we only need to check pairs with
+    the same departure time as this
+     */
+    for (auto it = insert_loc; it != std::begin(arrival_time); --it) {
+      if (dominates(new_pair, *it)) {
+        it = std::next(arrival_time.erase(it));  // This might be wrong
+      }
+    }
+    if (dominates(new_pair, *arrival_time.begin())) {
+      arrival_time.erase(arrival_time.begin());
+    }
+  }
+
   void expand_footpaths(csa_station const& station, time station_arrival,
                         arrival_times const& best_arrival_times) {
+    // B: the new pair might have to be the minimum of the first pair departing
+    // after our arrival time and best_arrival_times
     if constexpr (Dir == search_dir::FWD) {
       for (auto const& fp : station.incoming_footpaths_) {
         auto const new_pair =
             std::make_pair(station_arrival - fp.duration_, best_arrival_times);
-        (void)new_pair;
-        // TODO(root) insert into arrival_time_[station.id_]
+        insert_into_arrival_times(new_pair, station);
       }
     } else {
       for (auto const& fp : station.footpaths_) {
         auto const new_pair =
             std::make_pair(station_arrival + fp.duration_, best_arrival_times);
-        (void)new_pair;
-        // TODO(root) insert into arrival_time_[station.id_]
+        insert_into_arrival_times(new_pair, station);
       }
     }
   }
