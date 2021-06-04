@@ -88,22 +88,35 @@ struct csa_profile_search {
    * that implements these operations
    */
 
-  static arrival_times arr_min(arrival_times const& arr1,
-                               arrival_times const& arr2,
-                               arrival_times const& arr3) {
+  static time min(time t1, time t2) {
+    if constexpr (Dir == search_dir::FWD) {
+      return std::min(t1, t2);
+    } else {
+      return std::max(t1, t2);
+    }
+  }
+
+  static arrival_times min(arrival_times const& arr1, arrival_times const& arr2,
+                           arrival_times const& arr3) {
     auto result = arrival_times();
     for (auto i = 0; i < result.size(); ++i) {
-      if constexpr (Dir == search_dir::FWD) {
-        result[i] = std::min(std::min(arr1[i], arr2[i]), arr3[i]);
-      } else {
-        result[i] = std::max(std::max(arr1[i], arr2[i]), arr3[i]);
-      }
+      result[i] = min(arr1[i], min(arr2[i], arr3[i]));
     }
 
     return result;
   }
 
-  static arrival_times arr_shift(arrival_times const& arr) {
+  static arrival_times min(arrival_times const& arr1,
+                           arrival_times const& arr2) {
+    auto result = arrival_times();
+    for (auto i = 0; i < result.size(); ++i) {
+      result[i] = min(arr1[i], arr2[i]);
+    }
+
+    return result;
+  }
+
+  static arrival_times shift(arrival_times const& arr) {
     auto result = array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID);
     for (auto i = 1; i < result.size(); ++i) {
       result[i] = arr[i - 1];
@@ -186,8 +199,8 @@ struct csa_profile_search {
 
   template <typename Cont, typename T, typename Comp>
   auto get_insert_location(Cont const& cont, T const& item, Comp comp) {
-    // we might need to find the first with equal departure time to item
-    return std::upper_bound(cont.begin(), cont.end(), item, comp);
+    // find first element not less than item
+    return std::lower_bound(cont.begin(), cont.end(), item, comp);
   }
 
   static bool pair_comparator(std::pair<time, arrival_times> const& p1,
@@ -199,22 +212,23 @@ struct csa_profile_search {
     }
   }
 
-  void insert_into_arrival_times(std::pair<time, arrival_times> const& new_pair,
+  void add_arrival_time(std::pair<time, arrival_times> const& new_pair,
                                  csa_station const& station) {
     auto& arrival_time = arrival_time_[station.id_];
     auto const insert_loc =
         get_insert_location(arrival_time, new_pair, pair_comparator);
-    arrival_time.insert(insert_loc, new_pair);
-    /*
-    Either the domination function is wrong, or we only need to check pairs with
-    the same departure time as this
-     */
-    for (auto it = insert_loc; it != std::begin(arrival_time); --it) {
-      if (dominates(new_pair, *it)) {
+    auto const pair_to_insert = std::make_pair(
+        new_pair.first, min(new_pair.second, insert_loc->second));
+    arrival_time.insert(insert_loc, pair_to_insert);
+
+    // B: If I understand this correctly, we don't need this
+    for (auto it = std::prev(insert_loc); it != std::begin(arrival_time);
+         --it) {
+      if (dominates(pair_to_insert, *it)) {
         it = std::next(arrival_time.erase(it));  // This might be wrong
       }
     }
-    if (dominates(new_pair, *arrival_time.begin())) {
+    if (dominates(pair_to_insert, *arrival_time.begin())) {
       arrival_time.erase(arrival_time.begin());
     }
   }
@@ -227,13 +241,13 @@ struct csa_profile_search {
       for (auto const& fp : station.incoming_footpaths_) {
         auto const new_pair =
             std::make_pair(station_arrival - fp.duration_, best_arrival_times);
-        insert_into_arrival_times(new_pair, station);
+        add_arrival_time(new_pair, station);
       }
     } else {
       for (auto const& fp : station.footpaths_) {
         auto const new_pair =
             std::make_pair(station_arrival + fp.duration_, best_arrival_times);
-        insert_into_arrival_times(new_pair, station);
+        add_arrival_time(new_pair, station);
       }
     }
   }
@@ -260,23 +274,20 @@ struct csa_profile_search {
 
       auto const time_walking = get_time_walking(con);
       auto const time_trip = trip_reachable_[con.trip_];
-      auto const time_transfer = arr_shift(get_time_transfer(con));
+      auto const time_transfer = shift(get_time_transfer(con));
 
       auto const best_arrival_times =
-          arr_min(time_walking, time_trip, time_transfer);
-      auto const departure_time =
+          min(time_walking, time_trip, time_transfer);
+      auto const station_arrival =
           Dir == search_dir::FWD ? con.departure_ : con.arrival_;
-      auto const best_pair = std::make_pair(departure_time, best_arrival_times);
+      auto const best_pair =
+          std::make_pair(station_arrival, best_arrival_times);
 
       auto const to_index =
           Dir == search_dir::FWD ? con.from_station_ : con.to_station_;
 
       if (!is_dominated_in(best_pair, arrival_time_[to_index])) {
-        auto const& station = Dir == search_dir::FWD
-                                  ? tt_.stations_[con.from_station_]
-                                  : tt_.stations_[con.to_station_];
-        auto const station_arrival =
-            Dir == search_dir::FWD ? con.departure_ : con.arrival_;
+        auto const& station = tt_.stations_[to_index];
         expand_footpaths(station, station_arrival, best_arrival_times);
       }
 
