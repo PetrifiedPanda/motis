@@ -213,7 +213,7 @@ struct csa_profile_search {
   }
 
   void add_arrival_time(std::pair<time, arrival_times> const& new_pair,
-                                 csa_station const& station) {
+                        csa_station const& station) {
     auto& arrival_time = arrival_time_[station.id_];
     auto const insert_loc =
         get_insert_location(arrival_time, new_pair, pair_comparator);
