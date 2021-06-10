@@ -177,7 +177,7 @@ struct csa_profile_search {
     return array_maker<time, MAX_TRANSFERS + 1>::make_array(time_walking);
   }
 
-  const arrival_times& get_time_transfer(csa_connection const& con) {
+  arrival_times const& get_time_transfer(csa_connection const& con) {
     // find the first pair that departs after station arrival
     auto const station_id =
         Dir == search_dir::FWD ? con.to_station_ : con.from_station_;
