@@ -237,18 +237,14 @@ struct csa_profile_search {
                         arrival_times const& best_arrival_times) {
     // B: the new pair might have to be the minimum of the first pair departing
     // after our arrival time and best_arrival_times
-    if constexpr (Dir == search_dir::FWD) {
-      for (auto const& fp : station.incoming_footpaths_) {
-        auto const new_pair =
-            std::make_pair(station_arrival - fp.duration_, best_arrival_times);
-        add_arrival_time(new_pair, station);
-      }
-    } else {
-      for (auto const& fp : station.footpaths_) {
-        auto const new_pair =
-            std::make_pair(station_arrival + fp.duration_, best_arrival_times);
-        add_arrival_time(new_pair, station);
-      }
+    auto const& footpaths = Dir == search_dir::FWD ? station.incoming_footpaths_
+                                                   : station.footpaths_;
+    for (auto const& fp : footpaths) {
+      auto const transfer_time = Dir == search_dir::FWD
+                                     ? station_arrival - fp.duration_
+                                     : station_arrival + fp.duration_;
+      add_arrival_time(std::make_pair(transfer_time, best_arrival_times),
+                       station);
     }
   }
 
