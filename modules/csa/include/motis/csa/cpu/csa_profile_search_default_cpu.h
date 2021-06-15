@@ -162,30 +162,26 @@ struct csa_profile_search {
     });
   }
 
-  arrival_times get_time_walking(csa_connection const& con) {
+  arrival_times get_time_walking(station_id to_station, time arrival) {
     auto time_walking = INVALID;
-    if constexpr (Dir == search_dir::FWD) {
-      if (final_footpaths_[con.to_station_] != INVALID) {
-        time_walking = con.arrival_ + final_footpaths_[con.to_station_];
-      }
-    } else {
-      if (final_footpaths_[con.from_station_] != INVALID) {
-        time_walking = con.departure_ - final_footpaths_[con.from_station_];
+    if (final_footpaths_[to_station] != INVALID) {
+      if constexpr (Dir == search_dir::FWD) {
+        time_walking = arrival + final_footpaths_[to_station];
+      } else {
+        time_walking = arrival - final_footpaths_[to_station];
       }
     }
 
     return array_maker<time, MAX_TRANSFERS + 1>::make_array(time_walking);
   }
 
-  arrival_times const& get_time_transfer(csa_connection const& con) {
-    // find the first pair that departs after station arrival
-    auto const station_id =
-        Dir == search_dir::FWD ? con.to_station_ : con.from_station_;
+  arrival_times get_time_transfer(station_id to_station, time arrival) {
+    // find the first pair that departs after to_station arrival
     // B: is transfer_time_ the footpath to itself?
-    auto const transfer_time = tt_.stations_[station_id].transfer_time_;
-    auto const& list = arrival_time_[station_id];
-    auto const limit = Dir == search_dir::FWD ? con.arrival_ + transfer_time
-                                              : con.departure_ - transfer_time;
+    auto const transfer_time = tt_.stations_[to_station].transfer_time_;
+    auto const& list = arrival_time_[to_station];
+    auto const limit = Dir == search_dir::FWD ? arrival + transfer_time
+                                              : arrival - transfer_time;
     auto it = std::lower_bound(list.begin(), list.end(), limit,
                                [](auto const& p, auto const& t) {
                                  if constexpr (Dir == search_dir::FWD) {
@@ -194,7 +190,7 @@ struct csa_profile_search {
                                    return p.first > t;
                                  }
                                });
-    return it->second;
+    return shift(it->second);
   }
 
   template <typename Cont, typename T, typename Comp>
@@ -233,18 +229,19 @@ struct csa_profile_search {
     }
   }
 
-  void expand_footpaths(csa_station const& station, time station_arrival,
+  void expand_footpaths(csa_station const& from_station, time station_arrival,
                         arrival_times const& best_arrival_times) {
     // B: the new pair might have to be the minimum of the first pair departing
     // after our arrival time and best_arrival_times
-    auto const& footpaths = Dir == search_dir::FWD ? station.incoming_footpaths_
-                                                   : station.footpaths_;
+    auto const& footpaths = Dir == search_dir::FWD
+                                ? from_station.incoming_footpaths_
+                                : from_station.footpaths_;
     for (auto const& fp : footpaths) {
       auto const transfer_time = Dir == search_dir::FWD
                                      ? station_arrival - fp.duration_
                                      : station_arrival + fp.duration_;
       add_arrival_time(std::make_pair(transfer_time, best_arrival_times),
-                       station);
+                       from_station);
     }
   }
 
@@ -268,23 +265,25 @@ struct csa_profile_search {
     for (auto it = range_start; it != range_end; ++it) {
       auto const& con = *it;
 
-      auto const time_walking = get_time_walking(con);
-      auto const time_trip = trip_reachable_[con.trip_];
-      auto const time_transfer = shift(get_time_transfer(con));
-
-      auto const best_arrival_times =
-          min(time_walking, time_trip, time_transfer);
-      auto const station_arrival =
-          Dir == search_dir::FWD ? con.departure_ : con.arrival_;
-      auto const best_pair =
-          std::make_pair(station_arrival, best_arrival_times);
-
-      auto const to_index =
+      auto const to_station =
+          Dir == search_dir::FWD ? con.to_station_ : con.from_station_;
+      auto const from_station =
           Dir == search_dir::FWD ? con.from_station_ : con.to_station_;
+      auto const arrival =
+          Dir == search_dir::FWD ? con.arrival_ : con.departure_;
+      auto const departure =
+          Dir == search_dir::FWD ? con.departure_ : con.arrival_;
 
-      if (!is_dominated_in(best_pair, arrival_time_[to_index])) {
-        auto const& station = tt_.stations_[to_index];
-        expand_footpaths(station, station_arrival, best_arrival_times);
+      auto const time_walking = get_time_walking(to_station, arrival);
+      auto const time_trip = trip_reachable_[con.trip_];
+      auto const time_transfer = get_time_transfer(to_station, arrival);
+
+      auto const best_arrival_times = min(time_walking, time_trip, time_transfer);
+      auto const best_pair = std::make_pair(departure, best_arrival_times);
+
+      if (!is_dominated_in(best_pair, arrival_time_[to_station])) {
+        expand_footpaths(tt_.stations_[from_station], departure,
+                         best_arrival_times);
       }
 
       trip_reachable_[con.trip_] = best_arrival_times;
