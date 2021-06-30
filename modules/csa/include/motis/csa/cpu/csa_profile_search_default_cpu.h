@@ -10,6 +10,7 @@
 #include "motis/core/schedule/interval.h"
 
 #include "motis/csa/csa_journey.h"
+#include "motis/csa/csa_profile_reconstruction.h"
 #include "motis/csa/csa_search_shared.h"
 #include "motis/csa/csa_statistics.h"
 #include "motis/csa/csa_timetable.h"
@@ -291,13 +292,27 @@ struct csa_profile_search {
     }
   }
 
-  std::vector<csa_journey> get_results(csa_station const& station,
+  std::vector<csa_journey> get_results(csa_station const& start_station,
                                        bool include_equivalent) {
     utl::verify_ex(!include_equivalent,
                    std::system_error{error::include_equivalent_not_supported});
+    std::vector<csa_journey> journeys;
+    auto recon = csa_profile_reconstruction<Dir, decltype(arrival_time_),
+                                            decltype(trip_reachable_)>(
+        tt_, start_times_, arrival_time_, trip_reachable_);
+    for (auto const& pair : arrival_time_[start_station.id_]) {
+      auto const departure = pair.first;
+      auto const& station_arrival = pair.second;
+      for (auto i = 0; i <= MAX_TRANSFERS; ++i) {
+        auto const arrival_time = station_arrival[i];
+        if (arrival_time != INVALID) {
+          recon.extract_journey(journeys.emplace_back(
+              Dir, departure, arrival_time, i, &start_station));
+        }
+      }
+    }
 
-    (void)station;
-    return {};
+    return journeys;
   }
 
   csa_timetable const& tt_;
