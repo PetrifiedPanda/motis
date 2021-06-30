@@ -6,10 +6,10 @@ namespace motis::csa {
 
 template <search_dir Dir, typename ArrivalTimes, typename TripReachable>
 struct csa_profile_reconstruction {
-  csa_profile_reconstruction(
-      csa_timetable const& tt, std::map<station_id, time> const& start_times,
-      ArrivalTimes const& arrival_time,
-      TripReachable const& trip_reachable)
+  csa_profile_reconstruction(csa_timetable const& tt,
+                             std::map<station_id, time> const& start_times,
+                             ArrivalTimes const& arrival_time,
+                             TripReachable const& trip_reachable)
       : tt_(tt),
         start_times_(start_times),
         arrival_time_(arrival_time),
