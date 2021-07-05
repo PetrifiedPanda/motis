@@ -38,7 +38,7 @@ struct csa_profile_search {
         trip_reachable_(
             tt.trip_count_,
             array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID)),
-        final_footpaths_(tt.stations_.size(), INVALID),
+        final_footpaths_(tt.stations_.size(), std::numeric_limits<time>::max()),
         stats_{stats} {}
 
   void add_start(csa_station const& station, time initial_duration) {
@@ -64,14 +64,14 @@ struct csa_profile_search {
   }
 
   void set_final_footpaths(csa_station const& target_station) {
-    if constexpr (Dir == search_dir::FWD) {
-      for (auto const& fp : target_station.incoming_footpaths_) {
-        final_footpaths_[fp.from_station_] = fp.duration_;
-      }
-    } else {
-      for (auto const& fp : target_station.footpaths_) {
-        final_footpaths_[fp.to_station_] = fp.duration_;
-      }
+    auto const& footpaths = Dir == search_dir::FWD
+                                ? target_station.incoming_footpaths_
+                                : target_station.footpaths_;
+    for (auto const& fp : footpaths) {
+      auto const station =
+          Dir == search_dir::FWD ? fp.from_station_ : fp.to_station_;
+      final_footpaths_[station] =
+          std::min(fp.duration_, final_footpaths_[station]);
     }
   }
 
@@ -306,8 +306,10 @@ struct csa_profile_search {
       for (auto i = 0; i <= MAX_TRANSFERS; ++i) {
         auto const arrival_time = station_arrival[i];
         if (arrival_time != INVALID) {
-          recon.extract_journey(journeys.emplace_back(
-              Dir, departure, arrival_time, i, &start_station));
+          auto& journey =
+              journeys.emplace_back(Dir, departure, arrival_time, i, nullptr);
+          journey.start_station_ = &start_station;
+          recon.extract_journey(journey);
         }
       }
     }
