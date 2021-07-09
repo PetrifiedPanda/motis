@@ -164,7 +164,7 @@ struct csa_profile_search {
 
   arrival_times get_time_walking(station_id to_station, time arrival) {
     auto time_walking = INVALID;
-    if (final_footpaths_[to_station] != INVALID) {
+    if (final_footpaths_[to_station] != std::numeric_limits<time>::max()) {
       if constexpr (Dir == search_dir::FWD) {
         time_walking = arrival + final_footpaths_[to_station];
       } else {
