@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <limits>
 #include <list>
@@ -20,9 +21,7 @@ namespace motis::csa::cpu {
 
 template <search_dir Dir>
 struct csa_profile_search {
-  static constexpr auto INVALID = Dir == search_dir::FWD
-                                      ? std::numeric_limits<time>::max()
-                                      : std::numeric_limits<time>::min();
+  static constexpr auto INVALID = INVALID_TIME<Dir, time>;
 
   using arrival_times = std::array<time, MAX_TRANSFERS + 1>;
 
@@ -183,19 +182,12 @@ struct csa_profile_search {
     auto const& list = arrival_time_[to_station];
     auto const limit = Dir == search_dir::FWD ? arrival + transfer_time
                                               : arrival - transfer_time;
-    auto it = std::lower_bound(list.begin(), list.end(), limit,
-                               [](auto const& p, auto const& t) {
-                                 if constexpr (Dir == search_dir::FWD) {
-                                   return p.first < t;
-                                 } else {
-                                   return p.first > t;
-                                 }
-                               });
+    auto it = get_pair_departing_after<Dir>(list, limit);
     return shift(it->second);
   }
 
   template <typename Cont, typename T, typename Comp>
-  auto get_insert_location(Cont const& cont, T const& item, Comp comp) {
+  static auto get_insert_location(Cont const& cont, T const& item, Comp comp) {
     // find first element not less than item
     return std::lower_bound(cont.begin(), cont.end(), item, comp);
   }
@@ -298,8 +290,9 @@ struct csa_profile_search {
                    std::system_error{error::include_equivalent_not_supported});
     std::vector<csa_journey> journeys;
     auto recon = csa_profile_reconstruction<Dir, decltype(arrival_time_),
-                                            decltype(trip_reachable_)>(
-        tt_, start_times_, arrival_time_, trip_reachable_);
+                                            decltype(trip_reachable_),
+                                            decltype(final_footpaths_)>(
+        tt_, start_times_, arrival_time_, trip_reachable_, final_footpaths_);
     for (auto const& pair : arrival_time_[start_station.id_]) {
       auto const departure = pair.first;
       auto const& station_arrival = pair.second;
