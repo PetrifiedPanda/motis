@@ -34,8 +34,8 @@ struct csa_profile_reconstruction {
       auto const arrival = j.arrival_time_;
       auto const departure = j.start_time_;
       auto* stop = j.start_station_;
-      unsigned transfers;
-      for (transfers = j.transfers_; transfers > 0; --transfers) {
+      auto transfers = j.transfers_;
+      for (; transfers > 0; --transfers) {
         auto jp = get_journey_pointer(*stop, transfers, arrival, departure);
 
         stop = &tt_.stations_[jp.exit_con_->from_station_];
