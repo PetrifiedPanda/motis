@@ -29,8 +29,7 @@ auto sorted_insert(Cont& cont, T const& elem) {
 }
 
 template <search_dir Dir, typename Cont, typename TimeType>
-typename Cont::const_iterator get_pair_departing_after(Cont const& cont,
-                                                       TimeType limit) {
+auto get_pair_departing_after(Cont const& cont, TimeType limit) {
   return find_item_location(cont, limit, [](auto const& pair, auto const t) {
     if constexpr (Dir == search_dir::FWD) {
       return pair.first < t;
