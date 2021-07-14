@@ -30,28 +30,34 @@ struct csa_profile_reconstruction {
   }
 
   station_id find_meta_target(csa_station const* from) {
-    // TODO(root): BIDIR
-    auto walk_duration = final_footpaths_[from->id_];
-    for (auto const& fp : from->footpaths_) {
-      if (fp.duration_ == walk_duration && is_target_station(fp.to_station_)) {
-        return fp.to_station_;
+    auto const walk_duration = final_footpaths_[from->id_];
+
+    auto const& footpaths =
+        Dir == search_dir::FWD ? from->footpaths_ : from->incoming_footpaths_;
+    for (auto const& fp : footpaths) {
+      auto const to_station =
+          Dir == search_dir::FWD ? fp.to_station_ : fp.from_station_;
+      if (fp.duration_ == walk_duration && is_target_station(to_station)) {
+        return to_station;
       }
     }
 
-    return -1;
+    return static_cast<station_id>(-1);
   }
 
   void extract_journey(csa_journey& j) {
+    auto duration = Dir == search_dir::FWD ? j.arrival_time_ - j.start_time_
+                                           : j.start_time_ - j.arrival_time_;
     (void)trip_reachable_;  // TODO(root): Delete when unnecessary
-    // TODO(root): Only implemented for Dir == search_dir::FWD
-    if (j.arrival_time_ ==
-        j.start_time_ + final_footpaths_[j.start_station_->id_]) {
+    if (duration == final_footpaths_[j.start_station_->id_]) {
       // Just walking from source stop is optimal
-      auto meta_target = find_meta_target(j.start_station_);
+      auto const meta_target = find_meta_target(j.start_station_);
+      assert(meta_target != static_cast<station_id>(-1));
       j.transfers_ = 0;  // Don't know if this is necessary
       j.edges_.emplace_back(j.start_station_, &tt_.stations_[meta_target],
                             j.start_time_, j.arrival_time_);
     } else {
+      // TODO(root): Only implemented for Dir == search_dir::FWD
       auto const arrival = j.arrival_time_;
       auto const departure = j.start_time_;
       auto* stop = j.start_station_;
