@@ -17,17 +17,27 @@ constexpr auto INVALID_TIME = Dir == search_dir::FWD
                                   ? std::numeric_limits<TimeType>::max()
                                   : std::numeric_limits<TimeType>::min();
 
+template <typename Cont, typename T, typename Comp = std::less<T>>
+auto find_item_location(Cont const& cont, T const& item, Comp comp = Comp()) {
+  // find first element not less than item
+  return std::lower_bound(cont.begin(), cont.end(), item, comp);
+}
+
+template <typename Cont, typename T>
+auto sorted_insert(Cont& cont, T const& elem) {
+  return cont.insert(find_item_location(cont, elem), elem);
+}
+
 template <search_dir Dir, typename Cont, typename TimeType>
 typename Cont::const_iterator get_pair_departing_after(Cont const& cont,
                                                        TimeType limit) {
-  return std::lower_bound(cont.begin(), cont.end(), limit,
-                          [](auto const& pair, auto const t) {
-                            if constexpr (Dir == search_dir::FWD) {
-                              return pair.first < t;
-                            } else {
-                              return pair.first > t;
-                            }
-                          });
+  return find_item_location(cont, limit, [](auto const& pair, auto const t) {
+    if constexpr (Dir == search_dir::FWD) {
+      return pair.first < t;
+    } else {
+      return pair.first > t;
+    }
+  });
 }
 
 // https://stackoverflow.com/questions/49318316/initialize-all-elements-or-stdarray-with-the-same-constructor-arguments

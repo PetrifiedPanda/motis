@@ -57,7 +57,7 @@ struct csa_profile_search {
   }
 
   void add_dest(csa_station const& station) {
-    target_stations_.push_back(station.id_);
+    sorted_insert(target_stations_, station.id_);
 
     set_final_footpaths(station);
   }
@@ -186,12 +186,6 @@ struct csa_profile_search {
     return shift(it->second);
   }
 
-  template <typename Cont, typename T, typename Comp>
-  static auto get_insert_location(Cont const& cont, T const& item, Comp comp) {
-    // find first element not less than item
-    return std::lower_bound(cont.begin(), cont.end(), item, comp);
-  }
-
   static bool pair_comparator(std::pair<time, arrival_times> const& p1,
                               std::pair<time, arrival_times> const& p2) {
     if constexpr (Dir == search_dir::FWD) {
@@ -205,12 +199,13 @@ struct csa_profile_search {
                         csa_station const& station) {
     auto& arrival_time = arrival_time_[station.id_];
     auto const insert_loc =
-        get_insert_location(arrival_time, new_pair, pair_comparator);
+        find_item_location(arrival_time, new_pair, pair_comparator);
     auto const pair_to_insert = std::make_pair(
         new_pair.first, min(new_pair.second, insert_loc->second));
     arrival_time.insert(insert_loc, pair_to_insert);
 
     // B: If I understand this correctly, we don't need this
+    // if we don't we can just emplace pair_to_insert into arrival_time
     for (auto it = std::prev(insert_loc); it != std::begin(arrival_time);
          --it) {
       if (dominates(pair_to_insert, *it)) {
@@ -289,10 +284,11 @@ struct csa_profile_search {
     utl::verify_ex(!include_equivalent,
                    std::system_error{error::include_equivalent_not_supported});
     std::vector<csa_journey> journeys;
-    auto recon = csa_profile_reconstruction<Dir, decltype(arrival_time_),
-                                            decltype(trip_reachable_),
-                                            decltype(final_footpaths_)>(
-        tt_, start_times_, arrival_time_, trip_reachable_, final_footpaths_);
+    auto recon = csa_profile_reconstruction<
+        Dir, decltype(target_stations_), decltype(arrival_time_),
+        decltype(trip_reachable_), decltype(final_footpaths_)>(
+        tt_, start_times_, target_stations_, arrival_time_, trip_reachable_,
+        final_footpaths_);
     for (auto const& pair : arrival_time_[start_station.id_]) {
       auto const departure = pair.first;
       auto const& station_arrival = pair.second;
@@ -314,7 +310,7 @@ struct csa_profile_search {
   interval search_interval_;
 
   std::map<station_id, time> start_times_;
-  std::vector<station_id> target_stations_;  // B: not sure if we will need this
+  std::vector<station_id> target_stations_;
 
   // TODO(root): Time with different container types when the algorithm works
   // The pairs should be sorted by ascending departure_time (pair.first) when

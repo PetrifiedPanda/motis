@@ -4,8 +4,8 @@
 
 namespace motis::csa {
 
-template <search_dir Dir, typename ArrivalTimes, typename TripReachable,
-          typename FinalFootpaths>
+template <search_dir Dir, typename TargetStations, typename ArrivalTimes,
+          typename TripReachable, typename FinalFootpaths>
 struct csa_profile_reconstruction {
   using arrival_time_t = std::remove_reference_t<
       std::remove_cv_t<decltype(std::declval<FinalFootpaths>()[0])>>;
@@ -14,14 +14,32 @@ struct csa_profile_reconstruction {
 
   csa_profile_reconstruction(csa_timetable const& tt,
                              std::map<station_id, time> const& start_times,
+                             TargetStations const& target_stations,
                              ArrivalTimes const& arrival_time,
                              TripReachable const& trip_reachable,
                              FinalFootpaths const& final_footpaths)
-      : tt_(tt),
-        start_times_(start_times),
-        arrival_time_(arrival_time),
-        trip_reachable_(trip_reachable),
-        final_footpaths_(final_footpaths) {}
+      : tt_{tt},
+        start_times_{start_times},
+        target_stations_{target_stations},
+        arrival_time_{arrival_time},
+        trip_reachable_{trip_reachable},
+        final_footpaths_{final_footpaths} {}
+
+  bool is_target_station(station_id id) {
+    return find_item_location(target_stations_, id) != target_stations_.end();
+  }
+
+  station_id find_meta_target(csa_station const* from) {
+    // TODO(root): BIDIR
+    auto walk_duration = final_footpaths_[from->id_];
+    for (auto const& fp : from->footpaths_) {
+      if (fp.duration_ == walk_duration && is_target_station(fp.to_station_)) {
+        return fp.to_station_;
+      }
+    }
+
+    return -1;
+  }
 
   void extract_journey(csa_journey& j) {
     (void)trip_reachable_;  // TODO(root): Delete when unnecessary
@@ -29,7 +47,10 @@ struct csa_profile_reconstruction {
     if (j.arrival_time_ ==
         j.start_time_ + final_footpaths_[j.start_station_->id_]) {
       // Just walking from source stop is optimal
-      return;  // just returning is not enough
+      auto meta_target = find_meta_target(j.start_station_);
+      j.transfers_ = 0;  // Don't know if this is necessary
+      j.edges_.emplace_back(j.start_station_, &tt_.stations_[meta_target],
+                            j.start_time_, j.arrival_time_);
     } else {
       auto const arrival = j.arrival_time_;
       auto const departure = j.start_time_;
@@ -100,6 +121,8 @@ struct csa_profile_reconstruction {
 
   csa_timetable const& tt_;
   std::map<station_id, time> const& start_times_;
+  TargetStations const& target_stations_;
+
   ArrivalTimes const& arrival_time_;
   TripReachable const& trip_reachable_;
   FinalFootpaths const& final_footpaths_;
