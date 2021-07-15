@@ -9,6 +9,8 @@ template <search_dir Dir, typename TargetStations, typename ArrivalTimes,
 struct csa_profile_reconstruction {
   using arrival_time_t = std::remove_reference_t<
       std::remove_cv_t<decltype(std::declval<FinalFootpaths>()[0])>>;
+  using arr_dep_lst =
+      std::remove_reference_t<decltype(std::declval<ArrivalTimes>()[0])>;
 
   static constexpr auto INVALID = INVALID_TIME<Dir, arrival_time_t>;
 
@@ -58,20 +60,24 @@ struct csa_profile_reconstruction {
     } else {
       // TODO(root): Only implemented for Dir == search_dir::FWD
       auto const arrival = j.arrival_time_;
-      auto const departure = j.start_time_;
+
+      auto departure = j.start_time_;
       auto* stop = j.start_station_;
       auto transfers = j.transfers_;
       for (; transfers > 0; --transfers) {
         auto jp = get_journey_pointer(*stop, transfers, arrival, departure);
 
-        stop = &tt_.stations_[jp.exit_con_->from_station_];
+        stop = &tt_.stations_[jp.exit_con_->to_station_];
+        departure = jp.exit_con_->arrival_;  // B: unsure about this
+
+        // TODO(root): insert appropriate edge for journey pointer
       }
     }
   }
 
-  template <typename ArrDepList>  // Temporary template badness
-  auto get_fitting_arrival(ArrDepList const& arrival_time, time arrival,
+  auto get_fitting_arrival(arr_dep_lst const& arrival_time, time arrival,
                            time departure_limit, unsigned transfers) {
+    // B: unsure about the "latest departure" part
     // find latest departure which arrives at the same time as the current
     // journey
     auto result = arrival_time.end();
@@ -99,26 +105,23 @@ struct csa_profile_reconstruction {
                                       time const departure) {
     // TODO(root): BIDIR
     for (auto const& fp : station.footpaths_) {
-      auto const& arrival_time = arrival_time_[fp.to_station_];
-      if (auto it = get_fitting_arrival(arrival_time, arrival,
-                                        departure + fp.duration_, transfers);
-          it != arrival_time.end()) {
-        // found next target -> now we can search for the next connection from
-        // there
-        auto* const enter_station = &tt_.stations_[fp.to_station_];
-        auto const new_departure = it->first;
+      auto const& enter_station = tt_.stations_[fp.to_station_];
+      auto const new_departure = departure + fp.duration_;
+      for (auto const* enter_con : get_enter_candidates(
+               enter_station, arrival, new_departure, transfers)) {
+        // Go through trip_to con in reverse
+        auto const& trip_to_con = tt_.trip_to_connections_[enter_con->trip_];
+        for (auto it = std::rbegin(trip_to_con);; ++it) {
+          auto const* exit_con = *it;
 
-        for (auto const* enter_con : get_enter_candidates(
-                 *enter_station, arrival, new_departure, transfers)) {
-          auto const enter_trip = enter_con->trip_;
-          for (auto const* exit_con : tt_.trip_to_connections_[enter_trip]) {
-            auto const& con_arrival_time = arrival_time_[exit_con->to_station_];
-            // TODO(root): find departure limit (transfers may be wrong too)
-            if (auto exit_it = get_fitting_arrival(con_arrival_time, arrival,
-                                                   -1, transfers - 1);
-                exit_it != con_arrival_time.end()) {
-              return {enter_con, exit_con, &fp};
-            }
+          auto const& arrival_time = arrival_time_[exit_con->to_station_];
+          // B: unsure whether it should be transfers - 1 or just transfers
+          if (auto exit_it = get_fitting_arrival(
+                  arrival_time, arrival, exit_con->arrival_, transfers - 1);
+              exit_it != arrival_time.end()) {
+            return {enter_con, exit_con, &fp};
+          } else if (*it == enter_con) {
+            break;
           }
         }
       }
@@ -127,28 +130,14 @@ struct csa_profile_reconstruction {
     return {};
   }
 
-  auto get_enter_candidates(csa_station const& departure_station,
-                            time arrival_time, time departure_limit,
-                            unsigned transfers) const {
+  auto get_enter_candidates(csa_station const& departure_station, time arrival,
+                            time departure, unsigned transfers) const {
     return utl::all(departure_station.outgoing_connections_) |
-           utl::remove_if([this, arrival_time, departure_limit,
+           utl::remove_if([this, arrival, departure,
                            transfers](csa_connection const* con) {
              return !trip_arrives_early_enough(con->trip_, transfers,
-                                               arrival_time) ||
-                    con->departure_ < departure_limit || !con->from_in_allowed_;
-           }) |
-           utl::iterable();
-  }
-
-  auto get_exit_candidates(csa_station const& arrival_station,
-                           time arrival_time, time departure_limit,
-                           unsigned transfers) const {
-    return utl::all(arrival_station.incoming_connections_) |
-           utl::remove_if([this, arrival_time, departure_limit,
-                           transfers](csa_connection const* con) {
-             return !trip_arrives_early_enough(con->trip_, transfers,
-                                               arrival_time) ||
-                    con->departure_ > departure_limit || !con->to_out_allowed_;
+                                               arrival) ||
+                    con->departure_ != departure || !con->from_in_allowed_;
            }) |
            utl::iterable();
   }
