@@ -70,7 +70,6 @@ struct csa_profile_reconstruction {
         stop = &tt_.stations_[jp.exit_con_->to_station_];
         departure = jp.exit_con_->arrival_;  // B: unsure about this
 
-        // TODO(root): A lot of code reuse from csa_reconstruction
         if (jp.valid()) {
           constexpr search_dir RECON_DIR =
               Dir == search_dir::FWD ? search_dir::BWD : search_dir::FWD;
