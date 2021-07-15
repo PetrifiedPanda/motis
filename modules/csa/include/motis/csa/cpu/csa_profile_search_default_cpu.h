@@ -266,9 +266,9 @@ struct csa_profile_search {
       auto const time_trip = trip_reachable_[con.trip_];
       auto const time_transfer = get_time_transfer(to_station, arrival);
 
-      auto const best_arrival_times =
-          min(time_walking, time_trip, time_transfer);
-      auto const best_pair = std::make_pair(departure, best_arrival_times);
+      auto const best_pair = std::make_pair(
+          departure, min(time_walking, time_trip, time_transfer));
+      auto const& best_arrival_times = best_pair.second;
 
       if (!is_dominated_in(best_pair, arrival_time_[to_station])) {
         expand_footpaths(tt_.stations_[from_station], departure,
