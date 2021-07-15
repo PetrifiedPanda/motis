@@ -18,22 +18,6 @@
 
 namespace motis::csa {
 
-struct journey_pointer {
-  journey_pointer() = default;
-  journey_pointer(csa_connection const* enter_con,
-                  csa_connection const* exit_con, footpath const* footpath)
-      : enter_con_(enter_con), exit_con_(exit_con), footpath_(footpath) {}
-
-  bool valid() const {
-    return enter_con_ != nullptr && exit_con_ != nullptr &&
-           footpath_ != nullptr;
-  }
-
-  csa_connection const* enter_con_{nullptr};
-  csa_connection const* exit_con_{nullptr};
-  footpath const* footpath_{nullptr};
-};
-
 template <search_dir Dir, typename ArrivalTimes, typename TripReachable>
 struct csa_reconstruction {
   using arrival_time_t = std::remove_reference_t<
@@ -75,60 +59,10 @@ struct csa_reconstruction {
           }
         }
 
-        if (jp.footpath_->from_station_ != jp.footpath_->to_station_) {
-          if (Dir == search_dir::FWD) {
-            j.edges_.emplace_back(
-                &tt_.stations_[jp.footpath_->from_station_],
-                &tt_.stations_[jp.footpath_->to_station_],
-                jp.exit_con_->arrival_,
-                jp.exit_con_->arrival_ + jp.footpath_->duration_, -1);
-          } else {
-            j.edges_.emplace_back(
-                &tt_.stations_[jp.footpath_->from_station_],
-                &tt_.stations_[jp.footpath_->to_station_],
-                jp.enter_con_->departure_ - jp.footpath_->duration_,
-                jp.enter_con_->departure_, -1);
-          }
-        }
-        assert(jp.enter_con_->trip_ == jp.exit_con_->trip_);
-        auto const& trip_cons = tt_.trip_to_connections_[jp.exit_con_->trip_];
-        auto const add_trip_edge = [&](csa_connection const* con) {
-          auto const enter = con == jp.enter_con_;
-          auto const exit = con == jp.exit_con_;
-          utl::verify(con->light_con_ != nullptr, "invalid light connection");
-          j.edges_.emplace_back(con->light_con_,
-                                &tt_.stations_[con->from_station_],
-                                &tt_.stations_[con->to_station_], enter, exit,
-                                con->departure_, con->arrival_);
-        };
-        if (Dir == search_dir::FWD) {
-          auto in_trip = false;
-          for (int i = static_cast<int>(trip_cons.size()) - 1; i >= 0; --i) {
-            auto const con = trip_cons[i];
-            if (con == jp.exit_con_) {
-              in_trip = true;
-            }
-            if (in_trip) {
-              add_trip_edge(con);
-            }
-            if (con == jp.enter_con_) {
-              break;
-            }
-          }
+        add_journey_pointer_to_journey<Dir>(j, jp, tt_);
+        if constexpr (Dir == search_dir::FWD) {
           stop = &tt_.stations_[jp.enter_con_->from_station_];
         } else {
-          auto in_trip = false;
-          for (auto const& con : trip_cons) {
-            if (con == jp.enter_con_) {
-              in_trip = true;
-            }
-            if (in_trip) {
-              add_trip_edge(con);
-            }
-            if (con == jp.exit_con_) {
-              break;
-            }
-          }
           stop = &tt_.stations_[jp.exit_con_->to_station_];
         }
         j.start_station_ = stop;
