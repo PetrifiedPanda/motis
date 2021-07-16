@@ -55,28 +55,38 @@ struct csa_profile_reconstruction {
       auto const meta_target = find_meta_target(j.start_station_);
       assert(meta_target != static_cast<station_id>(-1));
       j.transfers_ = 0;  // Don't know if this is necessary
-      j.edges_.emplace_back(j.start_station_, &tt_.stations_[meta_target],
-                            j.start_time_, j.arrival_time_);
+      if constexpr (Dir == search_dir::FWD) {
+        j.edges_.emplace_back(j.start_station_, &tt_.stations_[meta_target],
+                              j.start_time_, j.arrival_time_);
+      } else {
+        j.edges_.emplace_back(&tt_.stations_[meta_target], j.start_station_,
+                              j.arrival_time_, j.start_time_);
+      }
     } else {
       // TODO(root): Only implemented for Dir == search_dir::FWD
+      constexpr search_dir RECON_DIR =
+          Dir == search_dir::FWD ? search_dir::BWD : search_dir::FWD;
       auto const arrival = j.arrival_time_;
 
       auto departure = j.start_time_;
       auto* stop = j.start_station_;
       auto transfers = j.transfers_;
       for (; transfers > 0; --transfers) {
-        auto jp = get_journey_pointer(*stop, transfers, arrival, departure);
+        auto [next_dep, jp] =
+            get_journey_pointer(*stop, transfers, arrival, departure);
 
         stop = &tt_.stations_[jp.exit_con_->to_station_];
-        departure = jp.exit_con_->arrival_;  // B: unsure about this
+        departure = next_dep;  // B: unsure about this
 
         if (jp.valid()) {
-          constexpr search_dir RECON_DIR =
-              Dir == search_dir::FWD ? search_dir::BWD : search_dir::FWD;
           add_journey_pointer_to_journey<RECON_DIR>(j, jp, tt_);
         } else {
           // TODO(root): Not sure what to do here
         }
+      }
+
+      if constexpr (RECON_DIR == search_dir::FWD) {
+        std::reverse(begin(j.edges_), end(j.edges_));
       }
     }
   }
@@ -106,9 +116,11 @@ struct csa_profile_reconstruction {
     }
   }
 
-  journey_pointer get_journey_pointer(csa_station const& station,
-                                      unsigned transfers, time const arrival,
-                                      time const departure) {
+  // B: this might also need to return the departure time of the result pair
+  // because it is needed for the next algorithm step
+  std::pair<arrival_time_t, journey_pointer> get_journey_pointer(
+      csa_station const& station, unsigned transfers, time const arrival,
+      time const departure) {
     // TODO(root): BIDIR
     for (auto const& fp : station.footpaths_) {
       auto const& enter_station = tt_.stations_[fp.to_station_];
@@ -125,7 +137,8 @@ struct csa_profile_reconstruction {
           if (auto exit_it = get_fitting_arrival(
                   arrival_time, arrival, exit_con->arrival_, transfers - 1);
               exit_it != arrival_time.end()) {
-            return {enter_con, exit_con, &fp};
+            return std::make_pair(exit_it->first,
+                                  journey_pointer{enter_con, exit_con, &fp});
           } else if (*it == enter_con) {
             break;
           }
@@ -133,7 +146,7 @@ struct csa_profile_reconstruction {
       }
     }
 
-    return {};
+    return std::make_pair(INVALID, journey_pointer{});
   }
 
   auto get_enter_candidates(csa_station const& departure_station, time arrival,
