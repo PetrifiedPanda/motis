@@ -263,7 +263,7 @@ struct csa_profile_search {
           Dir == search_dir::FWD ? con.departure_ : con.arrival_;
 
       auto const time_walking = get_time_walking(to_station, arrival);
-      auto const time_trip = trip_reachable_[con.trip_];
+      auto const& time_trip = trip_reachable_[con.trip_];
       auto const time_transfer = get_time_transfer(to_station, arrival);
 
       auto const best_pair = std::make_pair(
