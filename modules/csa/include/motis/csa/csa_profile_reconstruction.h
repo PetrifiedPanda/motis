@@ -116,34 +116,35 @@ struct csa_profile_reconstruction {
     }
   }
 
-  // B: this might also need to return the departure time of the result pair
-  // because it is needed for the next algorithm step
   std::pair<arrival_time_t, journey_pointer> get_journey_pointer(
       csa_station const& station, unsigned transfers, time const arrival,
       time const departure) {
-    // TODO(root): BIDIR
-    for (auto const& fp : station.footpaths_) {
-      auto const& enter_station = tt_.stations_[fp.to_station_];
-      auto const new_departure = departure + fp.duration_;
-      for (auto const* enter_con : get_enter_candidates(
-               enter_station, arrival, new_departure, transfers)) {
-        // Go through trip_to con in reverse
-        auto const& trip_to_con = tt_.trip_to_connections_[enter_con->trip_];
-        for (auto it = std::rbegin(trip_to_con);; ++it) {
-          auto const* exit_con = *it;
+    if constexpr (Dir == search_dir::FWD) {
+      for (auto const& fp : station.footpaths_) {
+        auto const& enter_station = tt_.stations_[fp.to_station_];
+        auto const new_departure = departure + fp.duration_;
+        for (auto const* enter_con : get_enter_candidates(
+            enter_station, arrival, new_departure, transfers)) {
+          // Go through trip_to con in reverse
+          auto const& trip_to_con = tt_.trip_to_connections_[enter_con->trip_];
+          for (auto it = std::rbegin(trip_to_con);; ++it) {
+            auto const* exit_con = *it;
 
-          auto const& arrival_time = arrival_time_[exit_con->to_station_];
-          // B: unsure whether it should be transfers - 1 or just transfers
-          if (auto exit_it = get_fitting_arrival(
+            auto const& arrival_time = arrival_time_[exit_con->to_station_];
+            // B: unsure whether it should be transfers - 1 or just transfers
+            if (auto exit_it = get_fitting_arrival(
                   arrival_time, arrival, exit_con->arrival_, transfers - 1);
-              exit_it != arrival_time.end()) {
-            return std::make_pair(exit_it->first,
-                                  journey_pointer{enter_con, exit_con, &fp});
-          } else if (*it == enter_con) {
-            break;
+                exit_it != arrival_time.end()) {
+              return std::make_pair(exit_it->first,
+                                    journey_pointer{enter_con, exit_con, &fp});
+            } else if (*it == enter_con) {
+              break;
+            }
           }
         }
       }
+    } else {
+      // TODO: Dir == search_dir::BWD
     }
 
     return std::make_pair(INVALID, journey_pointer{});
