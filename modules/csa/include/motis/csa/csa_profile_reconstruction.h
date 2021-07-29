@@ -124,7 +124,7 @@ struct csa_profile_reconstruction {
         auto const& enter_station = tt_.stations_[fp.to_station_];
         auto const new_departure = departure + fp.duration_;
         for (auto const* enter_con : get_enter_candidates(
-            enter_station, arrival, new_departure, transfers)) {
+                 enter_station, arrival, new_departure, transfers)) {
           // Go through trip_to con in reverse
           auto const& trip_to_con = tt_.trip_to_connections_[enter_con->trip_];
           for (auto it = std::rbegin(trip_to_con);; ++it) {
@@ -133,7 +133,7 @@ struct csa_profile_reconstruction {
             auto const& arrival_time = arrival_time_[exit_con->to_station_];
             // B: unsure whether it should be transfers - 1 or just transfers
             if (auto exit_it = get_fitting_arrival(
-                  arrival_time, arrival, exit_con->arrival_, transfers - 1);
+                    arrival_time, arrival, exit_con->arrival_, transfers - 1);
                 exit_it != arrival_time.end()) {
               return std::make_pair(exit_it->first,
                                     journey_pointer{enter_con, exit_con, &fp});
