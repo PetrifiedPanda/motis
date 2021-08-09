@@ -81,7 +81,11 @@ struct csa_profile_reconstruction {
         if (jp.valid()) {
           add_journey_pointer_to_journey<RECON_DIR>(j, jp, tt_);
         } else {
-          // TODO(root): Not sure what to do here
+          // TODO: This might actually have to do something other than throwing
+          // an exception
+          throw std::runtime_error{
+              "csa_profile_reconstruction::get_journey_pointer returned "
+              "invalid journey pointer"};
         }
       }
 
