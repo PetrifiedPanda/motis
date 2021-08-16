@@ -17,14 +17,15 @@ target_compile_options(motis-csa PRIVATE ${MOTIS_CXX_FLAGS})
 target_compile_definitions(motis-csa PRIVATE ${MOTIS_COMPILE_DEFINITIONS})
 
 if (MOTIS_CUDA)
-  add_library(gpucsa SHARED src/gpu/gpu_csa.cu)
+  file(GLOB_RECURSE motis-csa-cuda-files src/*.cu)
+  add_library(gpucsa SHARED ${motis-csa-cuda-files})
   set_target_properties(gpucsa PROPERTIES
-      WINDOWS_EXPORT_ALL_SYMBOLS ON
-      CUDA_SEPARABLE_COMPILATION ON
-      CUDA_STANDARD 14
-      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
-      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
-      INSTALL_RPATH "$ORIGIN/../lib:$ORIGIN/")
+          WINDOWS_EXPORT_ALL_SYMBOLS ON
+          CUDA_SEPARABLE_COMPILATION ON
+          CUDA_STANDARD 14
+          RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+          LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+          INSTALL_RPATH "$ORIGIN/../lib:$ORIGIN/")
   target_include_directories(gpucsa PUBLIC include)
   set_property(TARGET gpucsa PROPERTY CUDA_ARCHITECTURES 75 61)
   target_link_libraries(motis-csa gpucsa)

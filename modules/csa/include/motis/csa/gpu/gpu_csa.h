@@ -1,26 +1,8 @@
 #pragma once
 
-#include <inttypes.h>
+#include "motis/csa/gpu/gpu_csa_shared.h"
 
 extern "C" {
-
-enum { GPU_CSA_MAX_TRANSFERS = 7U };
-enum { GPU_CSA_MAX_TRAVEL_TIME = 1440U };
-
-struct gpu_timetable;
-
-typedef uint16_t gpu_csa_time;
-typedef uint32_t gpu_csa_station_id;
-typedef uint32_t gpu_csa_trip_idx;
-typedef uint16_t gpu_csa_con_idx;
-
-struct gpu_csa_con {
-  gpu_csa_station_id from_, to_;
-  gpu_csa_trip_idx trip_;
-  gpu_csa_time dep_, arr_;
-  gpu_csa_con_idx trip_con_idx_;
-  bool in_allowed_, out_allowed_;
-};
 
 struct gpu_timetable* create_csa_gpu_timetable(
     struct gpu_csa_con* conns, uint32_t* bucket_starts, uint32_t bucket_count,

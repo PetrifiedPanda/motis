@@ -11,86 +11,9 @@ extern "C" {
 //==============================================================================
 // CUDA UTILITIES
 //------------------------------------------------------------------------------
-#define XSTR(s) STR(s)
-#define STR(s) #s
-
-#define FMT_HUMAN_READABLE "%.1f%s"
-#define HUMAN_READABLE(size)                                                \
-  ((size) > 1024 * 1024 * 1024)                                             \
-      ? (((float)(size)) / 1024 / 1024 / 1024)                              \
-      : ((size) > 1024 * 1024)                                              \
-            ? (((float)(size)) / 1024 / 1024)                               \
-            : ((size) > 1024) ? (((float)(size)) / 1024) : ((float)(size)), \
-      ((size) > 1024 * 1024 * 1024)                                         \
-          ? "GB"                                                            \
-          : ((size) > 1024 * 1024) ? "MB" : ((size) > 1024) ? "kb" : "b"
-
-#define CUDA_CALL(call)                                   \
-  if ((code = call) != cudaSuccess) {                     \
-    printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
-           cudaGetErrorString(code), __FILE__, __LINE__); \
-    goto fail;                                            \
-  }
-
-#define CUDA_COPY_TO_DEVICE(type, target, source, size)                        \
-  CUDA_CALL(cudaMalloc(&target, size * sizeof(type)))                          \
-  CUDA_CALL(                                                                   \
-      cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice)) \
-  device_bytes += size * sizeof(type);
 
 __host__ __device__ inline int divup(int a, int b) {
   return ((a % b) != 0) ? (a / b + 1) : (a / b);
-}
-
-//==============================================================================
-// TIMETABLE
-//------------------------------------------------------------------------------
-struct gpu_timetable {
-  struct gpu_csa_con* conns_;
-  uint32_t* bucket_starts_;
-  uint32_t station_count_, trip_count_, bucket_count_;
-};
-
-struct gpu_timetable* create_csa_gpu_timetable(
-    struct gpu_csa_con* conns, uint32_t* bucket_starts, uint32_t bucket_count,
-    uint32_t conn_count, uint32_t station_count, uint32_t trip_count) {
-  size_t device_bytes = 0U;
-
-  cudaError_t code;
-  gpu_timetable* tt =
-      static_cast<gpu_timetable*>(malloc(sizeof(gpu_timetable)));
-
-  tt->station_count_ = station_count;
-  tt->trip_count_ = trip_count;
-  tt->bucket_count_ = bucket_count;
-  tt->conns_ = nullptr;
-
-  CUDA_COPY_TO_DEVICE(uint32_t, tt->bucket_starts_, bucket_starts,
-                      bucket_count);
-  CUDA_COPY_TO_DEVICE(struct gpu_csa_con, tt->conns_, conns, conn_count);
-
-  printf("Schedule size on GPU: " FMT_HUMAN_READABLE "\n",
-         HUMAN_READABLE(device_bytes));
-
-  return tt;
-
-fail:
-  if (tt != nullptr) {
-    cudaFree(tt->conns_);
-  }
-  free(tt);
-  return nullptr;
-}
-
-void free_csa_gpu_timetable(struct gpu_timetable* tt) {
-  if (tt == nullptr) {
-    return;
-  }
-  cudaFree(tt->conns_);
-  tt->conns_ = nullptr;
-  tt->station_count_ = 0U;
-  tt->trip_count_ = 0U;
-  free(tt);
 }
 
 __device__ void atomic_min_u2(uint32_t* const addr, uint32_t const val) {
