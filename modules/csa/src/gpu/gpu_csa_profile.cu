@@ -68,7 +68,7 @@ __global__ void init_arrival_times_kernel(dep_arr_vec* arrival_times,
                                           uint32_t size) {
   auto const i = get_array_index();
   if (i < size) {
-    arrival_times[i] = create_dep_arr_vec(1, CSA_CUDA_INVALID_PAIR);
+    arrival_times[i] = create_dep_arr_vec(1);
   }
 }
 
