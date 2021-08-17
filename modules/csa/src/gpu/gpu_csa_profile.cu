@@ -36,7 +36,9 @@ struct d_profile_query {
 __global__ void free_device_arrivals_kernel(dep_arr_vec* arrival_times,
                                             size_t station_count) {
   auto const i = get_array_index();
-  delete[] arrival_times[i].data_;
+  if (i < station_count) {
+    delete[] arrival_times[i].data_;
+  }
 }
 
 constexpr auto THREADS_PER_BLOCK = 1024;
