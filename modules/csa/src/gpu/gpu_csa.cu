@@ -6,6 +6,26 @@
 #include <algorithm>
 #include <limits>
 
+#define XSTR(s) STR(s)
+#define STR(s) #s
+
+#define FMT_HUMAN_READABLE "%.1f%s"
+#define HUMAN_READABLE(size)                                             \
+  ((size) > 1024 * 1024 * 1024) ? (((float)(size)) / 1024 / 1024 / 1024) \
+  : ((size) > 1024 * 1024)      ? (((float)(size)) / 1024 / 1024)        \
+  : ((size) > 1024)             ? (((float)(size)) / 1024)               \
+                                : ((float)(size)),                                   \
+      ((size) > 1024 * 1024 * 1024) ? "GB"                               \
+      : ((size) > 1024 * 1024)      ? "MB"                               \
+      : ((size) > 1024)             ? "kb"                               \
+                                    : "b"
+
+#define CUDA_COPY_TO_DEVICE(type, target, source, size)                        \
+  CUDA_CALL(cudaMalloc(&target, size * sizeof(type)))                          \
+  CUDA_CALL(                                                                   \
+      cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice)) \
+  device_bytes += size * sizeof(type);
+
 extern "C" {
 
 //==============================================================================
