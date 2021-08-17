@@ -38,6 +38,7 @@ __global__ void free_device_arrivals_kernel(dep_arr_vec* arrival_times,
   auto const i = get_array_index();
   if (i < station_count) {
     delete[] arrival_times[i].data_;
+    arrival_times[i].data_ = nullptr;
   }
 }
 
@@ -46,13 +47,18 @@ constexpr auto THREADS_PER_BLOCK = 1024;
 void free_d_profile_query(d_profile_query& q) {
   cudaError_t code;
 
+loop:
   free_device_arrivals_kernel<<<divup(q.arrival_times_size_, THREADS_PER_BLOCK),
                                 THREADS_PER_BLOCK>>>(q.arrival_times_,
                                                      q.arrival_times_size_);
   CUDA_CALL(cudaGetLastError())
   CUDA_CALL(cudaDeviceSynchronize())
+  goto success;
 
-fail:  // TODO(root): this may cause a memory leak later :)
+  // TODO(root): this may cause an infinite loop and/or memory leaks later :)
+fail:
+  goto loop;
+success:
   cudaFree(q.arrival_times_);
   cudaFree(q.trip_reachable_);
   cudaFree(q.final_footpaths_);
