@@ -19,10 +19,11 @@ struct dep_arr_vec {
 
 constexpr gpu_csa_time CUDA_INVALID_TIME = UINT16_MAX;
 
-constexpr dep_arr_pair DEFAULT_PAIR = {CUDA_INVALID_TIME, {CUDA_INVALID_TIME}};
+constexpr dep_arr_pair CSA_CUDA_INVALID_PAIR = {CUDA_INVALID_TIME,
+                                                {CUDA_INVALID_TIME}};
 
 __device__ dep_arr_vec create_dep_arr_vec(
-    size_t init_size = 0, dep_arr_pair const& init_value = DEFAULT_PAIR);
+    size_t init_size = 0, dep_arr_pair init_value = CSA_CUDA_INVALID_PAIR);
 
 __device__ void free_dep_arr_vec(dep_arr_vec& vec);
 

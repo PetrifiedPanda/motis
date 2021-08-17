@@ -16,7 +16,7 @@ __device__ void init_arr(dep_arr_pair* arr, size_t start, size_t end,
 }
 
 __device__ dep_arr_vec create_dep_arr_vec(size_t init_size,
-                                          dep_arr_pair const& init_value) {
+                                          dep_arr_pair init_value) {
   dep_arr_vec result;
   if (init_size != 0) {
     result.data_ = new dep_arr_pair[init_size];
