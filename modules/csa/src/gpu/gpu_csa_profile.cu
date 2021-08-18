@@ -108,6 +108,32 @@ __global__ void gpu_csa_profile_kernel(d_profile_query q) {
                                                      q.final_footpaths_size_);
 }
 
+bool copy_back_arrival_times(dep_arr_vec* arrival_times,
+                             dep_arr_vec* d_arrival_times,
+                             uint32_t station_count, size_t num_bytes) {
+  cudaError_t code;
+
+  CUDA_CALL(cudaMemcpy(arrival_times, d_arrival_times, num_bytes,
+                       cudaMemcpyDeviceToHost))
+  for (auto i = 0; i < station_count; ++i) {
+    auto& vec = arrival_times[i];
+    auto const* d_data = vec.data_;
+
+    if (vec.data_ != nullptr) {
+      vec.capacity_ = vec.size_;
+      vec.data_ = new dep_arr_pair[vec.size_];
+
+      CUDA_CALL(cudaMemcpy(vec.data_, d_data, sizeof(dep_arr_pair) * vec.size_,
+                           cudaMemcpyDeviceToHost))
+    }
+  }
+
+  return true;
+
+fail:
+  return false;
+}
+
 gpu_csa_profile_result gpu_csa_profile_search(
     gpu_timetable* tt, gpu_csa_start* starts, uint32_t num_starts,
     uint32_t num_queries, uint32_t start_bucket, gpu_csa_time time_limit) {
@@ -116,6 +142,7 @@ gpu_csa_profile_result gpu_csa_profile_search(
   auto const station_count = tt->station_count_;
   auto const trip_count = tt->trip_count_;
 
+  // Allocate result
   gpu_csa_profile_result r;
   r.arrival_times_ = new dep_arr_vec[station_count];
   r.trip_reachable_ = new arrival_times[trip_count];
@@ -146,21 +173,9 @@ gpu_csa_profile_result gpu_csa_profile_search(
   CUDA_CALL(cudaDeviceSynchronize())
 
   // Copy back results
-  CUDA_CALL(cudaMemcpy(r.arrival_times_, q.arrival_times_, arr_time_num_bytes,
-                       cudaMemcpyDeviceToHost))
-  for (auto i = 0; i < station_count; ++i) {
-    auto const* d_ptr = r.arrival_times_[i].data_;
-    auto& vec = r.arrival_times_[i];
-
-    if (vec.data_ != nullptr) {
-      auto const byte_size = sizeof(dep_arr_pair) * vec.size_;
-
-      vec.capacity_ = vec.size_;
-      vec.data_ =
-          new dep_arr_pair[vec.size_];  // Old data still in device memory
-
-      CUDA_CALL(cudaMemcpy(vec.data_, d_ptr, byte_size, cudaMemcpyDeviceToHost))
-    }
+  if (!copy_back_arrival_times(r.arrival_times_, q.arrival_times_,
+                               station_count, arr_time_num_bytes)) {
+    goto fail;
   }
 
   CUDA_CALL(cudaMemcpy(r.trip_reachable_, q.trip_reachable_,
