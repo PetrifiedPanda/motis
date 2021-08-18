@@ -4,12 +4,6 @@
 
 extern "C" {
 
-struct gpu_timetable* create_csa_gpu_timetable(
-    struct gpu_csa_con* conns, uint32_t* bucket_starts, uint32_t bucket_count,
-    uint32_t conn_count, uint32_t station_count, uint32_t trip_count);
-
-void free_csa_gpu_timetable(struct gpu_timetable*);
-
 struct gpu_csa_result {
   gpu_csa_time* station_arrivals_;
   gpu_csa_con_idx* trip_reachable_;
