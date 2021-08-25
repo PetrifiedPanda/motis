@@ -56,7 +56,7 @@ loop:
   CUDA_CALL(cudaDeviceSynchronize())
   goto success;
 
-  // TODO(root): this may cause an infinite loop and/or memory leaks later :)
+  // TODO(root): this may cause an infinite loop later :)
 fail:
   goto loop;
 success:
