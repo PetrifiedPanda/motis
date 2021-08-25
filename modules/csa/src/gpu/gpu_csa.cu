@@ -6,15 +6,13 @@
 #include <algorithm>
 #include <limits>
 
+#include "motis/csa/gpu/gpu_csa_shared_device.h"
+
 extern "C" {
 
 //==============================================================================
 // CUDA UTILITIES
 //------------------------------------------------------------------------------
-
-__host__ __device__ inline int divup(int a, int b) {
-  return ((a % b) != 0) ? (a / b + 1) : (a / b);
-}
 
 __device__ void atomic_min_u2(uint32_t* const addr, uint32_t const val) {
   uint32_t assumed, old_value = *addr;

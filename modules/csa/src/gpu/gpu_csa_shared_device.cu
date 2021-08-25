@@ -1,4 +1,4 @@
-#include "motis/csa/gpu/dep_arr_vec.h"
+#include "motis/csa/gpu/gpu_csa_shared_device.h"
 
 #include <cassert>
 #include <cstdio>

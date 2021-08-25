@@ -6,15 +6,9 @@
 #include <cuda_device_runtime_api.h>
 #include <cuda_runtime_api.h>
 
-#include "motis/csa/gpu/dep_arr_vec.h"
-#include "motis/csa/gpu/gpu_csa.h"
+#include "motis/csa/gpu/gpu_csa_shared_device.h"
 
 extern "C" {
-
-// TODO(root): BAD copied function
-__host__ __device__ inline int divup(int a, int b) {
-  return ((a % b) != 0) ? (a / b + 1) : (a / b);
-}
 
 __device__ inline int get_array_index() {  // TODO(root): better name
   return blockIdx.x * blockDim.x + threadIdx.x;
