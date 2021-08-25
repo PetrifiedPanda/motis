@@ -1,5 +1,6 @@
 #include "motis/csa/gpu/gpu_csa_profile.h"
 
+#include <cassert>
 #include <cstdio>
 
 #include <cuda_device_runtime_api.h>
@@ -88,14 +89,6 @@ __global__ void init_trip_reachable_kernel(arrival_times* trip_reachable,
   }
 }
 
-__global__ void init_final_footpaths_kernel(gpu_csa_time* final_footpaths,
-                                            uint32_t size) {
-  auto const i = get_array_index();
-  if (i < size) {
-    // TODO(root): find out how to get meta-targets
-  }
-}
-
 __global__ void gpu_csa_profile_kernel(d_profile_query q) {
   init_arrival_times_kernel<<<divup(q.arrival_times_size_, THREADS_PER_BLOCK),
                               THREADS_PER_BLOCK>>>(q.arrival_times_,
@@ -103,9 +96,6 @@ __global__ void gpu_csa_profile_kernel(d_profile_query q) {
   init_trip_reachable_kernel<<<divup(q.trip_reachable_size_, THREADS_PER_BLOCK),
                                THREADS_PER_BLOCK>>>(q.trip_reachable_,
                                                     q.trip_reachable_size_);
-  init_final_footpaths_kernel<<<divup(q.arrival_times_size_, THREADS_PER_BLOCK),
-                                THREADS_PER_BLOCK>>>(q.final_footpaths_,
-                                                     q.final_footpaths_size_);
 }
 
 bool copy_back_arrival_times(dep_arr_vec* arrival_times,
@@ -136,8 +126,13 @@ fail:
 
 gpu_csa_profile_result gpu_csa_profile_search(
     gpu_timetable* tt, gpu_csa_start* starts, uint32_t num_starts,
-    uint32_t num_queries, uint32_t start_bucket, gpu_csa_time time_limit) {
-  cudaError_t code;  // For macros in gpu_csa_shared.h
+    uint32_t num_queries, uint32_t start_bucket, gpu_csa_time time_limit,
+    gpu_csa_time* final_footpaths) {
+  assert(final_footpaths != nullptr);
+
+  // For macros in gpu_csa_shared.h
+  size_t device_bytes = 0U;
+  cudaError_t code;
 
   auto const station_count = tt->station_count_;
   auto const trip_count = tt->trip_count_;
@@ -146,7 +141,7 @@ gpu_csa_profile_result gpu_csa_profile_search(
   gpu_csa_profile_result r;
   r.arrival_times_ = new dep_arr_vec[station_count];
   r.trip_reachable_ = new arrival_times[trip_count];
-  r.final_footpaths_ = new gpu_csa_time[station_count];
+  r.final_footpaths_ = final_footpaths;
 
   d_profile_query q;
   q.arrival_times_size_ = station_count;
@@ -160,12 +155,12 @@ gpu_csa_profile_result gpu_csa_profile_search(
 
   auto const arr_time_num_bytes = station_count * sizeof(dep_arr_vec);
   auto const trip_reachable_num_bytes = trip_count * sizeof(arrival_times);
-  auto const final_fp_num_bytes = station_count * sizeof(gpu_csa_time);
 
   // Allocate Data structures on device
   CUDA_CALL(cudaMalloc(&q.arrival_times_, arr_time_num_bytes))
   CUDA_CALL(cudaMalloc(&q.trip_reachable_, trip_reachable_num_bytes))
-  CUDA_CALL(cudaMalloc(&q.final_footpaths_, final_fp_num_bytes))
+  CUDA_COPY_TO_DEVICE(gpu_csa_time, q.final_footpaths_, r.final_footpaths_,
+                      station_count)
 
   // DO ALGORITHM
   gpu_csa_profile_kernel<<<1, 1>>>(q);
@@ -180,8 +175,7 @@ gpu_csa_profile_result gpu_csa_profile_search(
 
   CUDA_CALL(cudaMemcpy(r.trip_reachable_, q.trip_reachable_,
                        trip_reachable_num_bytes, cudaMemcpyDeviceToHost))
-  CUDA_CALL(cudaMemcpy(r.final_footpaths_, q.final_footpaths_,
-                       final_fp_num_bytes, cudaMemcpyDeviceToHost))
+  // final_footpaths remains unchanged in the algorithm
 
   free_d_profile_query(q);
 
