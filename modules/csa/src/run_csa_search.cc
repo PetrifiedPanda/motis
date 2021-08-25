@@ -8,6 +8,7 @@
 #include "motis/csa/cpu/csa_search_default_cpu_sse.h"
 #endif
 #ifdef MOTIS_CUDA
+#include "motis/csa/gpu/gpu_profile_search.h"
 #include "motis/csa/gpu/gpu_search.h"
 #endif
 #include "motis/csa/cpu/csa_profile_search_default_cpu.h"
