@@ -51,9 +51,7 @@ struct csa_profile_search {
 
     start_times_[station.id_] = station_arrival;
 
-    // TODO(root): Incorporate the station arrival into arrival_times_
-
-    // TODO(root): call expand footpaths when implemented
+    // TODO(root): Not sure if we need to do more here
   }
 
   void add_dest(csa_station const& station) {
