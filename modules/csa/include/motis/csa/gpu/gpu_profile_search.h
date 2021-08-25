@@ -3,6 +3,7 @@
 #include "gpu_csa_profile.h"
 
 #include "motis/core/common/raii.h"
+#include "motis/csa/collect_start_times.h"
 #include "motis/csa/csa_profile_reconstruction.h"
 
 namespace motis::csa {
