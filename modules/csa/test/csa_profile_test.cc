@@ -1,10 +1,10 @@
 #include "gtest/gtest.h"
 
+#include <algorithm>
 #include <array>
 #include <unordered_map>
 
 #include "motis/csa/cpu/csa_profile_search_default_cpu.h"
-#include "motis/csa/csa_timetable.h"
 
 using namespace motis;
 using namespace motis::csa;
@@ -17,7 +17,7 @@ using namespace motis::csa::cpu;
  */
 struct simple_profile : ::testing::Test {
 public:
-  csa_station create_station(
+  static csa_station create_station(
       csa_station const& tmp_stat, unsigned id, motis::time transfer_time,
       std::vector<csa_connection const*>&& outgoing_connections,
       std::vector<csa_connection const*>&& incoming_connections) {
