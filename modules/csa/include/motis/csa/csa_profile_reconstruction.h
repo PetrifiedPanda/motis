@@ -1,6 +1,9 @@
 #pragma once
 
-#include "motis/csa/csa_reconstruction.h"
+#include "utl/pipes.h"
+
+#include "motis/csa/csa_search_shared.h"
+#include "motis/csa/csa_timetable.h"
 
 namespace motis::csa {
 

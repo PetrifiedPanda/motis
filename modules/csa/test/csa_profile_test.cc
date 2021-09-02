@@ -4,6 +4,7 @@
 #include <array>
 #include <unordered_map>
 
+#include "motis/core/schedule/station.h"
 #include "motis/csa/cpu/csa_profile_search_default_cpu.h"
 
 using namespace motis;
