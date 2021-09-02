@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 
 #include <array>
+#include <unordered_map>
 
 #include "motis/csa/cpu/csa_profile_search_default_cpu.h"
 #include "motis/csa/csa_timetable.h"
