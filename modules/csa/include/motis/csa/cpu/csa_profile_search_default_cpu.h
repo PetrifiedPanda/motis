@@ -19,6 +19,7 @@
 
 namespace motis::csa::cpu {
 
+// TODO(root): from_in_allowed_ and to_out_allowed_ are ignored
 template <search_dir Dir>
 struct csa_profile_search {
   static constexpr auto INVALID = INVALID_TIME<Dir, time>;
@@ -55,9 +56,14 @@ struct csa_profile_search {
   }
 
   void add_dest(csa_station const& station) {
+    stats_.destination_count_++;
     sorted_insert(target_stations_, station.id_);
 
     set_final_footpaths(station);
+    arrival_time_[station.id_].push_front(
+        std::make_pair(search_interval_.begin_,
+                       array_maker<time, MAX_TRANSFERS + 1>::make_array(
+                           search_interval_.end_)));
   }
 
   void set_final_footpaths(csa_station const& target_station) {
@@ -123,40 +129,53 @@ struct csa_profile_search {
     return result;
   }
 
-  static bool dominates(std::pair<time, arrival_times> const& x,
-                        std::pair<time, arrival_times> const& y) {
+  inline static bool time_comp(time t1, time t2) {
     if constexpr (Dir == search_dir::FWD) {
-      if (y.first >= x.first) {
-        // maybe this can be simplified to a range-based for loop
-        for (auto i = 0; i < x.second.size(); ++i) {
-          if (y.second[i] < x.second[i]) {
-            return false;
-          }
-        }
-
-        return true;
-      }
+      return t1 < t2;
     } else {
-      if (y.first <= x.first) {
-        // see comment above
-        for (auto i = 0; i < x.second.size(); ++i) {
-          if (y.second[i] > x.second[i]) {
-            return false;
-          }
-        }
+      return t1 > t2;
+    }
+  }
 
-        return true;
+  // TODO(root): Remove useless code duplication for dominates methods
+  static bool dominates(arrival_times const& x, arrival_times const& y) {
+    bool x_has_better = false;
+    for (auto i = 0; i < x.size(); ++i) {
+      if (time_comp(y[i], x[i])) {
+        return false;
+      } else if (time_comp(x[i], y[i])) {
+        x_has_better = true;
       }
     }
 
-    return false;
+    return x_has_better;
+  }
+
+  static bool dominates(std::pair<time, arrival_times> const& x,
+                        std::pair<time, arrival_times> const& y) {
+    bool x_has_better = time_comp(x.first, y.first);
+
+    if (!time_comp(y.first, x.first)) {
+      for (auto i = 0; i < x.second.size(); ++i) {
+        if (time_comp(x.second[i], y.second[i])) {
+          x_has_better = true;
+        } else if (time_comp(y.second[i], x.second[i])) {
+          return false;
+        }
+      }
+
+      return x_has_better;
+    } else {
+      return false;
+    }
   }
 
   static bool is_dominated_in(
       std::pair<time, arrival_times> const& pair,
       std::list<std::pair<time, arrival_times>> const& list) {
     return std::any_of(list.begin(), list.end(), [&](auto const& other) {
-      return dominates(other, pair);
+      return dominates(other, pair) || (time_comp(pair.first, other.first) &&
+                                        dominates(other.second, pair.second));
     });
   }
 
@@ -181,16 +200,16 @@ struct csa_profile_search {
     auto const limit = Dir == search_dir::FWD ? arrival + transfer_time
                                               : arrival - transfer_time;
     auto it = get_pair_departing_after<Dir>(list, limit);
-    return shift(it->second);
+    if (it == list.end()) {
+      return array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID);
+    } else {
+      return shift(it->second);
+    }
   }
 
-  static bool pair_comparator(std::pair<time, arrival_times> const& p1,
-                              std::pair<time, arrival_times> const& p2) {
-    if constexpr (Dir == search_dir::FWD) {
-      return p1.first < p2.first;
-    } else {
-      return p1.first > p2.first;
-    }
+  inline static bool pair_comparator(std::pair<time, arrival_times> const& p1,
+                                     std::pair<time, arrival_times> const& p2) {
+    return time_comp(p1.first, p2.first);
   }
 
   void add_arrival_time(std::pair<time, arrival_times> const& new_pair,
@@ -198,20 +217,30 @@ struct csa_profile_search {
     auto& arrival_time = arrival_time_[station.id_];
     auto const insert_loc =
         find_item_location(arrival_time, new_pair, pair_comparator);
-    auto const pair_to_insert = std::make_pair(
-        new_pair.first, min(new_pair.second, insert_loc->second));
-    arrival_time.insert(insert_loc, pair_to_insert);
+    auto const inserted = arrival_time.insert(
+        insert_loc, std::make_pair(new_pair.first,
+                                   min(new_pair.second, insert_loc->second)));
 
-    // B: If I understand this correctly, we don't need this
-    // if we don't we can just emplace pair_to_insert into arrival_time
-    for (auto it = std::prev(insert_loc); it != std::begin(arrival_time);
-         --it) {
-      if (dominates(pair_to_insert, *it)) {
-        it = std::next(arrival_time.erase(it));  // This might be wrong
+    if (inserted != arrival_time.begin()) {
+      using reverse =
+          std::list<std::pair<time, arrival_times>>::const_reverse_iterator;
+      // Delete all dominated pairs departing earlier than current
+      for (auto it = reverse(std::prev(inserted));
+           it != std::rend(arrival_time); ++it) {
+        if (dominates(inserted->second, it->second)) {
+          // This might be wrong
+          it = std::prev(reverse(arrival_time.erase(it.base())));
+        }
       }
     }
-    if (dominates(pair_to_insert, *arrival_time.begin())) {
-      arrival_time.erase(arrival_time.begin());
+
+    // Delete all dominated pairs departing at the same time as current
+    for (auto it = insert_loc; it != std::end(arrival_time); ++it) {
+      if (it->first != inserted->first) {
+        break;
+      } else if (dominates(inserted->second, it->second)) {
+        it = std::prev(arrival_time.erase(it));
+      }
     }
   }
 
@@ -268,7 +297,7 @@ struct csa_profile_search {
           departure, min(time_walking, time_trip, time_transfer));
       auto const& best_arrival_times = best_pair.second;
 
-      if (!is_dominated_in(best_pair, arrival_time_[to_station])) {
+      if (!is_dominated_in(best_pair, arrival_time_[from_station])) {
         expand_footpaths(tt_.stations_[from_station], departure,
                          best_arrival_times);
       }
@@ -287,16 +316,31 @@ struct csa_profile_search {
         decltype(trip_reachable_), decltype(final_footpaths_)>(
         tt_, start_times_, target_stations_, arrival_time_, trip_reachable_,
         final_footpaths_);
-    for (auto const& pair : arrival_time_[start_station.id_]) {
-      auto const departure = pair.first;
-      auto const& station_arrival = pair.second;
-      for (auto i = 0; i <= MAX_TRANSFERS; ++i) {
-        auto const arrival_time = station_arrival[i];
-        if (arrival_time != INVALID) {
-          auto& journey =
-              journeys.emplace_back(Dir, departure, arrival_time, i, nullptr);
+
+    /*
+     * Go through profiles in reverse order, always saving the earliest arrival
+     * with each number of transfers. Because the latest arrivals are in the
+     * latest profiles, we only need to check if the current arrival is smaller
+     * than the last extracted arrival with this amount of transfers
+     */
+    auto const& arr_time = arrival_time_[start_station.id_];
+    auto min_reconstructed =
+        array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID);
+    for (auto it = std::next(std::rbegin(arr_time)); it != std::rend(arr_time);
+         ++it) {
+      auto const& [dep, arrs] = *it;
+      for (auto i = 0; i < arrs.size(); ++i) {
+        auto const arr = arrs[i];
+        if (time_comp(arr, min_reconstructed[i])) {
+          auto& journey = journeys.emplace_back(Dir, dep, arr, i, nullptr);
           journey.start_station_ = &start_station;
           recon.extract_journey(journey);
+          min_reconstructed[i] = arr;
+          for (auto j = i + 1; j < arrs.size(); ++j) {
+            if (time_comp(arr, min_reconstructed[j])) {
+              min_reconstructed[j] = arr;
+            }
+          }
         }
       }
     }

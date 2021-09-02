@@ -54,7 +54,8 @@ struct csa_profile_reconstruction {
       // Just walking from source stop is optimal
       auto const meta_target = find_meta_target(j.start_station_);
       assert(meta_target != static_cast<station_id>(-1));
-      j.transfers_ = 0;  // Don't know if this is necessary
+      assert(j.transfers_ == 0);
+
       if constexpr (Dir == search_dir::FWD) {
         j.edges_.emplace_back(j.start_station_, &tt_.stations_[meta_target],
                               j.start_time_, j.arrival_time_);
@@ -75,10 +76,9 @@ struct csa_profile_reconstruction {
         auto [next_dep, jp] =
             get_journey_pointer(*stop, transfers, arrival, departure);
 
-        stop = &tt_.stations_[jp.exit_con_->to_station_];
-        departure = next_dep;  // B: unsure about this
-
         if (jp.valid()) {
+          stop = &tt_.stations_[jp.exit_con_->to_station_];
+          departure = next_dep;  // B: unsure about this
           add_journey_pointer_to_journey<RECON_DIR>(j, jp, tt_);
         } else {
           // TODO: This might actually have to do something other than throwing
