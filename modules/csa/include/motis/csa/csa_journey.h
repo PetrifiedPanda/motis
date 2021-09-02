@@ -1,5 +1,6 @@
 #pragma once
 
+#include "motis/core/schedule/edges.h"
 #include "motis/csa/csa_timetable.h"
 
 namespace motis::csa {
