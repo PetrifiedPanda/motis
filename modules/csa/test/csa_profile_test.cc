@@ -325,6 +325,8 @@ TEST_F(simple_profile, simple_fwd) {
   // 10 - 11
   check_all_val(search.trip_reachable_[7], 11);
 
+  // RECONSTRUCTION
+
   auto res = search.get_results(tt_.stations_[char_to_id_['s']], false);
 
   check_start_end_station(res, char_to_id_['s'], char_to_id_['t']);
@@ -430,5 +432,34 @@ TEST_F(simple_profile, simple_bwd) {
   check_only_x_from(it->second, 6, 2);
 
   // TRIP REACHABLE
-  // TODO(root):
+
+  // 5 - 8
+  check_all_val(search.trip_reachable_[0], 5);
+
+  // 6 - 7
+  check_all_val(search.trip_reachable_[1], 6);
+
+  // 7 - 8
+  check_all_val(search.trip_reachable_[2], 7);
+
+  // 8 - 9
+  EXPECT_EQ(search.trip_reachable_[3][0], search.INVALID);
+  check_only_x_from(search.trip_reachable_[3], 6, 1);
+
+  // 8 - 13
+  EXPECT_EQ(search.trip_reachable_[4][0], search.INVALID);
+  check_only_x_from(search.trip_reachable_[4], 6, 1);
+
+  // 9 - 12
+  EXPECT_EQ(search.trip_reachable_[5][0], search.INVALID);
+  check_only_x_from(search.trip_reachable_[5], 7, 1);
+
+  // 9 - 14
+  EXPECT_EQ(search.trip_reachable_[6][0], search.INVALID);
+  check_only_x_from(search.trip_reachable_[6], 5, 1);
+
+  // 10 - 11
+  EXPECT_EQ(search.trip_reachable_[7][0], search.INVALID);
+  EXPECT_EQ(search.trip_reachable_[7][1], search.INVALID);
+  check_only_x_from(search.trip_reachable_[7], 6, 2);
 }
