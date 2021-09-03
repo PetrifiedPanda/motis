@@ -189,6 +189,13 @@ void check_all_val(ArrTimes const& times, motis::time val) {
   }
 }
 
+template <typename ArrTimes>
+void check_only_x_from(ArrTimes const& arr, motis::time x, int from) {
+  for (auto i = from; i < arr.size(); ++i) {
+    EXPECT_EQ(arr[i], x);
+  }
+}
+
 template <typename Search>
 void last_arr_time_pair_invalid(Search const& search) {
   for (auto const& arr_time_lst : search.arrival_time_) {
@@ -240,7 +247,6 @@ TEST_F(simple_profile, simple_fwd) {
 
   check_final_footpaths(search, char_to_id_['t']);
 
-  constexpr auto ARR_SIZE = MAX_TRANSFERS + 1;
   // ARRIVAL TIMES
 
   last_arr_time_pair_invalid(search);
@@ -269,9 +275,7 @@ TEST_F(simple_profile, simple_fwd) {
   ASSERT_EQ(x_arr.size(), 2);
   EXPECT_EQ(x_arr.front().first, 8);
   EXPECT_EQ(x_arr.front().second[0], 13);
-  for (auto i = 1; i < ARR_SIZE; ++i) {
-    EXPECT_EQ(x_arr.front().second[i], 11);
-  }
+  check_only_x_from(x_arr.front().second, 11, 1);
 
   // The results for S come from page 25 of the paper
   auto const& s_arr = search.arrival_time_[char_to_id_['s']];
@@ -282,44 +286,32 @@ TEST_F(simple_profile, simple_fwd) {
   EXPECT_EQ(it->first, 6);
   EXPECT_EQ(it->second[0], search.INVALID);
   EXPECT_EQ(it->second[1], 12);
-  for (auto i = 2; i < ARR_SIZE; ++i) {
-    EXPECT_EQ(it->second[i], 11);
-  }
+  check_only_x_from(it->second, 11, 2);
 
   ++it;
   // second pair
   EXPECT_EQ(it->first, 7);
   EXPECT_EQ(it->second[0], search.INVALID);
-  for (auto i = 1; i < ARR_SIZE; ++i) {
-    EXPECT_EQ(it->second[i], 12);
-  }
+  check_only_x_from(it->second, 12, 1);
 
   // TRIP REACHABLE
 
   // 5 - 8
   EXPECT_EQ(search.trip_reachable_[0][0], search.INVALID);
-  for (auto i = 1; i < ARR_SIZE; ++i) {
-    EXPECT_EQ(search.trip_reachable_[0][i], 14);
-  }
+  check_only_x_from(search.trip_reachable_[0], 14, 1);
 
   // 6 - 7
   EXPECT_EQ(search.trip_reachable_[1][0], search.INVALID);
   EXPECT_EQ(search.trip_reachable_[1][1], 13);
-  for (auto i = 2; i < ARR_SIZE; ++i) {
-    EXPECT_EQ(search.trip_reachable_[1][i], 11);
-  }
+  check_only_x_from(search.trip_reachable_[1], 11, 2);
 
   // 7 - 8
   EXPECT_EQ(search.trip_reachable_[2][0], search.INVALID);
-  for (auto i = 1; i < ARR_SIZE; ++i) {
-    EXPECT_EQ(search.trip_reachable_[2][i], 12);
-  }
+  check_only_x_from(search.trip_reachable_[2], 12, 1);
 
   // 8 - 9
   EXPECT_EQ(search.trip_reachable_[3][0], search.INVALID);
-  for (auto i = 1; i < ARR_SIZE; ++i) {
-    EXPECT_EQ(search.trip_reachable_[3][i], 11);
-  }
+  check_only_x_from(search.trip_reachable_[3], 11, 1);
 
   // 8 - 13
   check_all_val(search.trip_reachable_[4], 13);
@@ -391,5 +383,52 @@ TEST_F(simple_profile, simple_bwd) {
 
   check_final_footpaths(search, char_to_id_['s']);
 
-  // TODO(root): Actual testing
+  // TODO(root): this may not actually be correct
+
+  // ARRIVAL TIMES
+
+  auto const& s_arr = search.arrival_time_[char_to_id_['s']];
+  ASSERT_EQ(s_arr.size(), 2);
+  EXPECT_EQ(s_arr.front().first, 1000);
+  check_all_val(s_arr.front().second, 0);
+
+  auto const& x_arr = search.arrival_time_[char_to_id_['x']];
+  ASSERT_EQ(x_arr.size(), 2);
+  EXPECT_EQ(x_arr.front().first, 7);
+  check_all_val(x_arr.front().second, 6);
+
+  auto const& v_arr = search.arrival_time_[char_to_id_['v']];
+  ASSERT_EQ(v_arr.size(), 2);
+  EXPECT_EQ(v_arr.front().first, 8);
+  check_all_val(v_arr.front().second, 5);
+
+  auto const& z_arr = search.arrival_time_[char_to_id_['z']];
+  ASSERT_EQ(z_arr.size(), 2);
+  EXPECT_EQ(z_arr.front().first, 8);
+  check_all_val(z_arr.front().second, 7);
+
+  auto const& y_arr = search.arrival_time_[char_to_id_['y']];
+  ASSERT_EQ(y_arr.size(), 2);
+  EXPECT_EQ(y_arr.front().first, 9);
+  EXPECT_EQ(y_arr.front().second[0], search.INVALID);
+  check_only_x_from(y_arr.front().second, 6, 1);
+
+  auto const& t_arr = search.arrival_time_[char_to_id_['t']];
+  ASSERT_EQ(t_arr.size(), 3);
+
+  auto it = t_arr.begin();
+
+  EXPECT_EQ(it->first, 12);
+  EXPECT_EQ(it->second[0], search.INVALID);
+  check_only_x_from(it->second, 7, 1);
+
+  ++it;
+
+  EXPECT_EQ(it->first, 11);
+  EXPECT_EQ(it->second[0], search.INVALID);
+  EXPECT_EQ(it->second[1], search.INVALID);
+  check_only_x_from(it->second, 6, 2);
+
+  // TRIP REACHABLE
+  // TODO(root):
 }
