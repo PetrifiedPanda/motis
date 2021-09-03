@@ -209,6 +209,27 @@ void check_final_footpaths(Search const& search, uint32_t target) {
   }
 }
 
+void check_start_end_station(std::vector<csa_journey> const& res,
+                             station_id start, station_id end) {
+  for (auto const& j : res) {
+    ASSERT_EQ(j.start_station_->id_, start);
+    ASSERT_EQ(j.destination_station_->id_, end);
+  }
+}
+
+void check_edges_and_transfers(std::vector<csa_journey> const& res) {
+  for (auto const& j : res) {
+    ASSERT_EQ(j.transfers_ + 1, j.edges_.size());
+  }
+}
+
+void check_enter_exit_true(csa_journey const& j) {
+  for (auto const& e : j.edges_) {
+    ASSERT_TRUE(e.enter_);
+    ASSERT_TRUE(e.exit_);
+  }
+}
+
 TEST_F(simple_profile, simple_fwd) {
 
   csa_statistics stats;
@@ -309,7 +330,49 @@ TEST_F(simple_profile, simple_fwd) {
 
   auto res = search.get_results(tt_.stations_[char_to_id_['s']], false);
 
-  // TODO(root): Test reconstruction results
+  check_start_end_station(res, char_to_id_['s'], char_to_id_['t']);
+  check_edges_and_transfers(res);
+
+  // TODO(root): find out if results need to be sorted
+  auto i = 0;
+  check_enter_exit_true(res[i]);
+
+  ASSERT_EQ(res[i].edges_.size(), 2);
+  EXPECT_EQ(res[i].start_time_, 7);
+  EXPECT_EQ(res[i].arrival_time_, 12);
+
+  EXPECT_EQ(res[i].edges_[0].departure_, 7);
+  EXPECT_EQ(res[i].edges_[0].arrival_, 8);
+  EXPECT_EQ(res[i].edges_[0].from_->id_, char_to_id_['s']);
+  EXPECT_EQ(res[i].edges_[0].to_->id_, char_to_id_['z']);
+
+  EXPECT_EQ(res[i].edges_[1].departure_, 9);
+  EXPECT_EQ(res[i].edges_[1].arrival_, 12);
+  EXPECT_EQ(res[i].edges_[1].from_->id_, char_to_id_['z']);
+  EXPECT_EQ(res[i].edges_[1].to_->id_, char_to_id_['t']);
+
+  ++i;
+
+  check_enter_exit_true(res[i]);
+
+  ASSERT_EQ(res[i].edges_.size(), 3);
+  EXPECT_EQ(res[i].start_time_, 6);
+  EXPECT_EQ(res[i].arrival_time_, 11);
+
+  EXPECT_EQ(res[i].edges_[0].departure_, 6);
+  EXPECT_EQ(res[i].edges_[0].arrival_, 7);
+  EXPECT_EQ(res[i].edges_[0].from_->id_, char_to_id_['s']);
+  EXPECT_EQ(res[i].edges_[0].to_->id_, char_to_id_['x']);
+
+  EXPECT_EQ(res[i].edges_[1].departure_, 8);
+  EXPECT_EQ(res[i].edges_[1].arrival_, 9);
+  EXPECT_EQ(res[i].edges_[1].from_->id_, char_to_id_['x']);
+  EXPECT_EQ(res[i].edges_[1].to_->id_, char_to_id_['y']);
+
+  EXPECT_EQ(res[i].edges_[2].departure_, 10);
+  EXPECT_EQ(res[i].edges_[2].arrival_, 11);
+  EXPECT_EQ(res[i].edges_[2].from_->id_, char_to_id_['y']);
+  EXPECT_EQ(res[i].edges_[2].to_->id_, char_to_id_['t']);
 }
 
 TEST_F(simple_profile, simple_bwd) {
