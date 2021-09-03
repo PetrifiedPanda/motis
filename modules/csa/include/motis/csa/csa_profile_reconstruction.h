@@ -50,6 +50,33 @@ struct csa_profile_reconstruction {
     return static_cast<station_id>(-1);
   }
 
+  void add_final_con(csa_journey& j, csa_station const& from,
+                     unsigned transfers) {
+    assert(transfers == 0);
+    if constexpr (Dir == search_dir::FWD) {
+      auto const arr_time = j.arrival_time_;
+
+      for (auto const& fp : from.footpaths_) {
+        auto const& from_station = tt_.stations_[fp.to_station_];
+        for (auto const* con : from_station.outgoing_connections_) {
+          auto const& to_station = tt_.stations_[con->to_station_];
+          if (con->arrival_ + fp.duration_ == arr_time &&
+              is_target_station(to_station.id_)) {
+            // TODO(root): not sure if enter should always be true here
+            j.edges_.emplace_back(con->light_con_, &from_station, &to_station,
+                                  true, true, con->departure_, arr_time);
+            j.destination_station_ = &to_station;
+            return;
+          }
+        }
+      }
+    } else {
+      // TODO(root):
+      throw std::runtime_error{
+          "Backwards version of add_final_con not implemented"};
+    }
+  }
+
   void extract_journey(csa_journey& j) {
     auto duration = Dir == search_dir::FWD ? j.arrival_time_ - j.start_time_
                                            : j.start_time_ - j.arrival_time_;
@@ -84,12 +111,19 @@ struct csa_profile_reconstruction {
           departure = next_dep;  // B: unsure about this
           add_journey_pointer_to_journey<RECON_DIR>(j, jp, tt_);
         } else {
-          // TODO: This might actually have to do something other than throwing
-          // an exception
+          // TODO(root): This might actually have to do something other than
+          // throwing an exception
           throw std::runtime_error{
               "csa_profile_reconstruction::get_journey_pointer returned "
               "invalid journey pointer"};
         }
+      }
+
+      assert(transfers == 0);
+      // TODO(root): not sure if this if is necessary
+      auto const& last_station = *j.edges_.back().to_;
+      if (!is_target_station(last_station.id_)) {
+        add_final_con(j, last_station, transfers);
       }
 
       if constexpr (RECON_DIR == search_dir::FWD) {
@@ -151,7 +185,9 @@ struct csa_profile_reconstruction {
         }
       }
     } else {
-      // TODO: Dir == search_dir::BWD
+      // TODO(root):
+      throw std::runtime_error{
+          "Backwards version of get_journey pointer not implemented"};
     }
 
     return std::make_pair(INVALID, journey_pointer{});
