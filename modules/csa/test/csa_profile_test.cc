@@ -245,22 +245,27 @@ TEST_F(simple_profile, simple_fwd) {
 
   last_arr_time_pair_invalid(search);
 
-  auto y_arr = search.arrival_time_[char_to_id_['y']];
+  auto const& t_arr = search.arrival_time_[char_to_id_['t']];
+  ASSERT_EQ(t_arr.size(), 2);
+  EXPECT_EQ(t_arr.front().first, 0);
+  check_all_val(t_arr.front().second, 1000);
+
+  auto const& y_arr = search.arrival_time_[char_to_id_['y']];
   ASSERT_EQ(y_arr.size(), 2);
   EXPECT_EQ(y_arr.front().first, 10);
   check_all_val(y_arr.front().second, 11);
 
-  auto z_arr = search.arrival_time_[char_to_id_['z']];
+  auto const& z_arr = search.arrival_time_[char_to_id_['z']];
   ASSERT_EQ(z_arr.size(), 2);
   EXPECT_EQ(z_arr.front().first, 9);
   check_all_val(z_arr.front().second, 12);
 
-  auto v_arr = search.arrival_time_[char_to_id_['v']];
+  auto const& v_arr = search.arrival_time_[char_to_id_['v']];
   ASSERT_EQ(v_arr.size(), 2);
   EXPECT_EQ(v_arr.front().first, 9);
   check_all_val(v_arr.front().second, 14);
 
-  auto x_arr = search.arrival_time_[char_to_id_['x']];
+  auto const& x_arr = search.arrival_time_[char_to_id_['x']];
   ASSERT_EQ(x_arr.size(), 2);
   EXPECT_EQ(x_arr.front().first, 8);
   EXPECT_EQ(x_arr.front().second[0], 13);
@@ -269,7 +274,7 @@ TEST_F(simple_profile, simple_fwd) {
   }
 
   // The results for S come from page 25 of the paper
-  auto s_arr = search.arrival_time_[char_to_id_['s']];
+  auto const& s_arr = search.arrival_time_[char_to_id_['s']];
   ASSERT_EQ(s_arr.size(), 3);
   auto it = s_arr.begin();
 
