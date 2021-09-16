@@ -237,6 +237,20 @@ void check_enter_exit_true(csa_journey const& j) {
   }
 }
 
+void check_all_edges_same(csa_journey const& j1, csa_journey const& j2) {
+  auto const& e1 = j1.edges_;
+  auto const& e2 = j2.edges_;
+  ASSERT_EQ(e1.size(), e2.size());
+
+  auto const size = e2.size();
+  for (auto i = 0; i < size; ++i) {
+    EXPECT_EQ(e1[i].departure_, e2[i].departure_);
+    EXPECT_EQ(e1[i].arrival_, e2[i].arrival_);
+    EXPECT_EQ(e1[i].from_->id_, e2[i].from_->id_);
+    EXPECT_EQ(e1[i].to_->id_, e2[i].to_->id_);
+  }
+}
+
 TEST_F(simple_profile, simple_fwd) {
 
   csa_statistics stats;
@@ -462,4 +476,43 @@ TEST_F(simple_profile, simple_bwd) {
   EXPECT_EQ(search.trip_reachable_[7][0], search.INVALID);
   EXPECT_EQ(search.trip_reachable_[7][1], search.INVALID);
   check_only_x_from(search.trip_reachable_[7], 6, 2);
+
+  auto res = search.get_results(tt_.stations_[char_to_id_['t']], false);
+
+  std::vector<csa_journey> cmp_res;
+  {
+    csa_statistics stats2;
+    csa_profile_search<search_dir::FWD> cmp_s{tt_, interval{0, 1000}, stats2};
+    cmp_s.add_dest(tt_.stations_[char_to_id_['t']]);
+
+    cmp_s.search();
+
+    cmp_res = cmp_s.get_results(tt_.stations_[char_to_id_['s']], false);
+  }
+
+  check_start_end_station(res, char_to_id_['t'], char_to_id_['s']);
+  check_edges_and_transfers(res);
+
+  ASSERT_EQ(res.size(), 2);
+  auto i = 0;
+  check_enter_exit_true(res[i]);
+
+  ASSERT_EQ(res[i].edges_.size(), 3);
+  // TODO(root): not sure if these should be swapped
+  EXPECT_EQ(res[i].arrival_time_, 6);
+  EXPECT_EQ(res[i].start_time_, 11);
+
+  // These should be equal to the forward reconstructions
+  check_all_edges_same(res[i], cmp_res[1]);
+
+  ++i;
+
+  check_enter_exit_true(res[i]);
+
+  ASSERT_EQ(res[i].edges_.size(), 2);
+  // TODO(root): not sure if these should be swapped
+  EXPECT_EQ(res[i].arrival_time_, 7);
+  EXPECT_EQ(res[i].start_time_, 12);
+
+  check_all_edges_same(res[i], cmp_res[0]);
 }

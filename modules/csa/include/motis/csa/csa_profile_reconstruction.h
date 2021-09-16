@@ -71,10 +71,23 @@ struct csa_profile_reconstruction {
         }
       }
     } else {
-      // TODO(root):
-      throw std::runtime_error{
-          "Backwards version of add_final_con not implemented"};
+      auto const dep_time = j.arrival_time_;
+      for (auto const& fp : from.incoming_footpaths_) {
+        auto const& to_station = tt_.stations_[fp.from_station_];
+        for (auto const* con : to_station.incoming_connections_) {
+          auto const& from_station = tt_.stations_[con->from_station_];
+          if (con->departure_ - fp.duration_ == dep_time &&
+              is_target_station(from_station.id_)) {
+            // TODO(root): not sure if exit should always be true here
+            j.edges_.emplace_back(con->light_con_, &from_station, &to_station,
+                                  true, true, dep_time, con->arrival_);
+            j.destination_station_ = &from_station;
+            return;
+          }
+        }
+      }
     }
+    throw std::runtime_error{"Could not find suitable final connection"};
   }
 
   void extract_journey(csa_journey& j) {
@@ -94,7 +107,6 @@ struct csa_profile_reconstruction {
                               j.arrival_time_, j.start_time_);
       }
     } else {
-      // TODO(root): Only implemented for Dir == search_dir::FWD
       constexpr search_dir RECON_DIR =
           Dir == search_dir::FWD ? search_dir::BWD : search_dir::FWD;
       auto const arrival = j.arrival_time_;
@@ -107,7 +119,10 @@ struct csa_profile_reconstruction {
             get_journey_pointer(*stop, transfers, arrival, departure);
 
         if (jp.valid()) {
-          stop = &tt_.stations_[jp.exit_con_->to_station_];
+          auto const stop_id = Dir == search_dir::FWD
+                                   ? jp.exit_con_->to_station_
+                                   : jp.enter_con_->from_station_;
+          stop = &tt_.stations_[stop_id];
           departure = next_dep;  // B: unsure about this
           add_journey_pointer_to_journey<RECON_DIR>(j, jp, tt_);
         } else {
@@ -121,7 +136,9 @@ struct csa_profile_reconstruction {
 
       assert(transfers == 0);
       // TODO(root): not sure if this if is necessary
-      auto const& last_station = *j.edges_.back().to_;
+      auto const& last_edge = j.edges_.back();
+      auto const& last_station =
+          Dir == search_dir::FWD ? *last_edge.to_ : *last_edge.from_;
       if (!is_target_station(last_station.id_)) {
         add_final_con(j, last_station, transfers);
       }
@@ -158,8 +175,8 @@ struct csa_profile_reconstruction {
   }
 
   std::pair<arrival_time_t, journey_pointer> get_journey_pointer(
-      csa_station const& station, unsigned transfers, time const arrival,
-      time const departure) {
+      csa_station const& station, unsigned transfers, time arrival,
+      time departure) {
     if constexpr (Dir == search_dir::FWD) {
       for (auto const& fp : station.footpaths_) {
         auto const& enter_station = tt_.stations_[fp.to_station_];
@@ -178,16 +195,36 @@ struct csa_profile_reconstruction {
                 exit_it != arrival_time.end()) {
               return std::make_pair(exit_it->first,
                                     journey_pointer{enter_con, exit_con, &fp});
-            } else if (*it == enter_con) {
+            } else if (exit_con == enter_con) {
               break;
             }
           }
         }
       }
     } else {
-      // TODO(root):
-      throw std::runtime_error{
-          "Backwards version of get_journey pointer not implemented"};
+      // Swap departure and arrival because shadowing them causes a warning
+      std::swap(departure, arrival);
+      for (auto const& fp : station.incoming_footpaths_) {
+        auto const& exit_station = tt_.stations_[fp.from_station_];
+        auto const new_arr = arrival - fp.duration_;  // does this make sense?
+
+        for (auto const* exit_con :
+             get_exit_candidates(exit_station, new_arr, departure, transfers)) {
+          auto const& trip_to_con = tt_.trip_to_connections_[exit_con->trip_];
+          for (auto const& enter_con : trip_to_con) {
+            auto const& arrival_time = arrival_time_[enter_con->from_station_];
+            if (auto enter_it =
+                    get_fitting_arrival(arrival_time, departure,
+                                        enter_con->departure_, transfers - 1);
+                enter_it != arrival_time.end()) {
+              return std::make_pair(enter_it->first,
+                                    journey_pointer{enter_con, exit_con, &fp});
+            } else if (enter_con == exit_con) {
+              break;
+            }
+          }
+        }
+      }
     }
 
     return std::make_pair(INVALID, journey_pointer{});
@@ -201,6 +238,18 @@ struct csa_profile_reconstruction {
              return !trip_arrives_early_enough(con->trip_, transfers,
                                                arrival) ||
                     con->departure_ != departure || !con->from_in_allowed_;
+           }) |
+           utl::iterable();
+  }
+
+  auto get_exit_candidates(csa_station const& arrival_station, time arrival,
+                           time departure, unsigned transfers) {
+    return utl::all(arrival_station.incoming_connections_) |
+           utl::remove_if([this, arrival, departure,
+                           transfers](csa_connection const* con) {
+             return !trip_arrives_early_enough(con->trip_, transfers,
+                                               departure) ||
+                    con->arrival_ != arrival || !con->to_out_allowed_;
            }) |
            utl::iterable();
   }
