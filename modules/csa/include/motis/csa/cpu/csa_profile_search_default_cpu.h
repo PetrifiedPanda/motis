@@ -222,32 +222,32 @@ struct csa_profile_search {
                                    min(new_pair.second, insert_loc->second)));
 
     if (inserted != arrival_time.begin()) {
-      using reverse =
-          std::list<std::pair<time, arrival_times>>::const_reverse_iterator;
       // Delete all dominated pairs departing earlier than current
-      for (auto it = reverse(std::prev(inserted));
-           it != std::rend(arrival_time); ++it) {
+      for (auto it = std::make_reverse_iterator(inserted);
+           it != std::rend(arrival_time);) {
         if (dominates(inserted->second, it->second)) {
           // This might be wrong
-          it = std::prev(reverse(arrival_time.erase(it.base())));
+          it = std::make_reverse_iterator(arrival_time.erase(it.base()));
+        } else {
+          ++it;
         }
       }
     }
 
     // Delete all dominated pairs departing at the same time as current
-    for (auto it = insert_loc; it != std::end(arrival_time); ++it) {
+    for (auto it = insert_loc; it != std::end(arrival_time);) {
       if (it->first != inserted->first) {
         break;
       } else if (dominates(inserted->second, it->second)) {
-        it = std::prev(arrival_time.erase(it));
+        it = arrival_time.erase(it);
+      } else {
+        ++it;
       }
     }
   }
 
   void expand_footpaths(csa_station const& from_station, time station_arrival,
                         arrival_times const& best_arrival_times) {
-    // B: the new pair might have to be the minimum of the first pair departing
-    // after our arrival time and best_arrival_times
     auto const& footpaths = Dir == search_dir::FWD
                                 ? from_station.incoming_footpaths_
                                 : from_station.footpaths_;
