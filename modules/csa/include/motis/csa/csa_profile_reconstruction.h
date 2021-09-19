@@ -50,43 +50,70 @@ struct csa_profile_reconstruction {
     return static_cast<station_id>(-1);
   }
 
-  void add_final_con(csa_journey& j, csa_station const& from,
+  void add_final_con(csa_journey& j, csa_station const& from, time arrival,
                      unsigned transfers) {
     assert(transfers == 0);
     if constexpr (Dir == search_dir::FWD) {
       auto const arr_time = j.arrival_time_;
-
-      for (auto const& fp : from.footpaths_) {
-        auto const& from_station = tt_.stations_[fp.to_station_];
+      for (auto const& enter_fp : from.footpaths_) {
+        auto const& from_station = tt_.stations_[enter_fp.to_station_];
         for (auto const* con : from_station.outgoing_connections_) {
-          auto const& to_station = tt_.stations_[con->to_station_];
-          if (con->arrival_ + fp.duration_ == arr_time &&
-              is_target_station(to_station.id_)) {
-            // TODO(root): not sure if enter should always be true here
-            j.edges_.emplace_back(con->light_con_, &from_station, &to_station,
-                                  true, true, con->departure_, arr_time);
-            j.destination_station_ = &to_station;
-            return;
+          if (arrival + enter_fp.duration_ <= con->departure_) {
+            auto const& to_station = tt_.stations_[con->to_station_];
+            for (auto const& exit_fp : to_station.footpaths_) {
+              if (is_target_station(exit_fp.to_station_) &&
+                  con->arrival_ + exit_fp.duration_ == arr_time) {
+                if (enter_fp.from_station_ != enter_fp.to_station_) {
+                  j.edges_.emplace_back(&from, &from_station, arrival,
+                                        arrival + enter_fp.duration_);
+                }
+                j.edges_.emplace_back(con->light_con_, &from_station,
+                                      &to_station, true, true, con->departure_,
+                                      con->arrival_);
+                if (exit_fp.from_station_ != exit_fp.to_station_) {
+                  j.edges_.emplace_back(&to_station,
+                                        &tt_.stations_[exit_fp.to_station_],
+                                        con->arrival_, arr_time);
+                }
+                j.destination_station_ = &tt_.stations_[exit_fp.to_station_];
+                return;
+              }
+            }
           }
         }
       }
     } else {
       auto const dep_time = j.arrival_time_;
-      for (auto const& fp : from.incoming_footpaths_) {
-        auto const& to_station = tt_.stations_[fp.from_station_];
+      for (auto const& exit_fp : from.incoming_footpaths_) {
+        auto const& to_station = tt_.stations_[exit_fp.from_station_];
         for (auto const* con : to_station.incoming_connections_) {
-          auto const& from_station = tt_.stations_[con->from_station_];
-          if (con->departure_ - fp.duration_ == dep_time &&
-              is_target_station(from_station.id_)) {
-            // TODO(root): not sure if exit should always be true here
-            j.edges_.emplace_back(con->light_con_, &from_station, &to_station,
-                                  true, true, dep_time, con->arrival_);
-            j.destination_station_ = &from_station;
-            return;
+          if (arrival - exit_fp.duration_ >= con->arrival_) {
+            auto const& from_station = tt_.stations_[con->from_station_];
+            for (auto const& enter_fp : from_station.incoming_footpaths_) {
+              if (is_target_station(enter_fp.from_station_) &&
+                  con->departure_ - enter_fp.duration_ == dep_time) {
+                if (exit_fp.from_station_ != exit_fp.to_station_) {
+                  j.edges_.emplace_back(&to_station, &from, con->arrival_,
+                                        arrival);  // TODO(root): unsure
+                }
+                j.edges_.emplace_back(con->light_con_, &from_station,
+                                      &to_station, true, true, con->departure_,
+                                      con->arrival_);
+                if (enter_fp.from_station_ != enter_fp.to_station_) {
+                  j.edges_.emplace_back(
+                      &tt_.stations_[enter_fp.from_station_], &from_station,
+                      dep_time,
+                      dep_time + enter_fp.duration_);  // TODO(root): unsure
+                }
+                j.destination_station_ = &tt_.stations_[enter_fp.from_station_];
+                return;
+              }
+            }
           }
         }
       }
     }
+
     throw std::runtime_error{"Could not find suitable final connection"};
   }
 
@@ -106,6 +133,8 @@ struct csa_profile_reconstruction {
         j.edges_.emplace_back(&tt_.stations_[meta_target], j.start_station_,
                               j.arrival_time_, j.start_time_);
       }
+    } else if (j.transfers_ == 0) {
+      add_final_con(j, *j.start_station_, j.start_time_, j.transfers_);
     } else {
       constexpr search_dir RECON_DIR =
           Dir == search_dir::FWD ? search_dir::BWD : search_dir::FWD;
@@ -118,29 +147,25 @@ struct csa_profile_reconstruction {
         auto [next_dep, jp] =
             get_journey_pointer(*stop, transfers, arrival, departure);
 
-        if (jp.valid()) {
-          auto const stop_id = Dir == search_dir::FWD
-                                   ? jp.exit_con_->to_station_
-                                   : jp.enter_con_->from_station_;
-          stop = &tt_.stations_[stop_id];
-          departure = next_dep;  // B: unsure about this
-          add_journey_pointer_to_journey<RECON_DIR>(j, jp, tt_);
-        } else {
-          // TODO(root): This might actually have to do something other than
-          // throwing an exception
-          throw std::runtime_error{
-              "csa_profile_reconstruction::get_journey_pointer returned "
-              "invalid journey pointer"};
-        }
+        assert(jp.valid());
+        auto const stop_id = Dir == search_dir::FWD
+                                 ? jp.exit_con_->to_station_
+                                 : jp.enter_con_->from_station_;
+        stop = &tt_.stations_[stop_id];
+        departure = next_dep;  // B: unsure about this
+        add_journey_pointer_to_journey<RECON_DIR>(j, jp, tt_);
       }
 
       assert(transfers == 0);
+      assert(!j.edges_.empty());
       // TODO(root): not sure if this if is necessary
       auto const& last_edge = j.edges_.back();
       auto const& last_station =
           Dir == search_dir::FWD ? *last_edge.to_ : *last_edge.from_;
       if (!is_target_station(last_station.id_)) {
-        add_final_con(j, last_station, transfers);
+        auto const arr =
+            Dir == search_dir::FWD ? last_edge.arrival_ : last_edge.departure_;
+        add_final_con(j, last_station, arr, transfers);
       }
 
       if constexpr (RECON_DIR == search_dir::FWD) {
@@ -227,7 +252,7 @@ struct csa_profile_reconstruction {
       }
     }
 
-    return std::make_pair(INVALID, journey_pointer{});
+    throw std::runtime_error{"Could not find fitting journey pointer"};
   }
 
   auto get_enter_candidates(csa_station const& departure_station, time arrival,
