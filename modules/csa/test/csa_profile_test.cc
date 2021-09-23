@@ -168,20 +168,6 @@ TEST(profile_dominates, arr_time_domination) {
   ASSERT_TRUE(csa_profile_search<search_dir::BWD>::dominates(a2, sent_bwd));
 }
 
-TEST(profile_dominates, pair_domination) {
-  auto p1 = std::make_pair(
-      0, array_maker<motis::time, MAX_TRANSFERS + 1>::make_array(10));
-  auto p2 = p1;
-  ASSERT_FALSE(csa_profile_search<search_dir::FWD>::dominates(p1, p2));
-  ASSERT_FALSE(csa_profile_search<search_dir::FWD>::dominates(p2, p1));
-  ASSERT_FALSE(csa_profile_search<search_dir::BWD>::dominates(p1, p2));
-  ASSERT_FALSE(csa_profile_search<search_dir::BWD>::dominates(p2, p1));
-
-  p1.second[5] = 5;
-  ASSERT_TRUE(csa_profile_search<search_dir::FWD>::dominates(p1, p2));
-  ASSERT_TRUE(csa_profile_search<search_dir::BWD>::dominates(p2, p1));
-}
-
 template <typename ArrTimes>
 void check_all_val(ArrTimes const& times, motis::time val) {
   for (auto const& entry : times) {
@@ -268,7 +254,7 @@ TEST_F(simple_profile, simple_fwd) {
   auto const& t_arr = search.arrival_time_[char_to_id_['t']];
   ASSERT_EQ(t_arr.size(), 2);
   EXPECT_EQ(t_arr.front().first, 0);
-  check_all_val(t_arr.front().second, 1000);
+  check_all_val(t_arr.front().second, 0);
 
   auto const& y_arr = search.arrival_time_[char_to_id_['y']];
   ASSERT_EQ(y_arr.size(), 2);
@@ -406,7 +392,7 @@ TEST_F(simple_profile, simple_bwd) {
   auto const& s_arr = search.arrival_time_[char_to_id_['s']];
   ASSERT_EQ(s_arr.size(), 2);
   EXPECT_EQ(s_arr.front().first, 1000);
-  check_all_val(s_arr.front().second, 0);
+  check_all_val(s_arr.front().second, 1000);
 
   auto const& x_arr = search.arrival_time_[char_to_id_['x']];
   ASSERT_EQ(x_arr.size(), 2);

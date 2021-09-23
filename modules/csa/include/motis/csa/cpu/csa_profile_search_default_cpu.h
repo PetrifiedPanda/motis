@@ -39,7 +39,10 @@ struct csa_profile_search {
             tt.trip_count_,
             array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID)),
         final_footpaths_(tt.stations_.size(), std::numeric_limits<time>::max()),
-        stats_{stats} {}
+        stats_{stats} {
+    std::cout << "From: " << search_interval.begin_
+              << " To: " << search_interval.end_ << std::endl;
+  }
 
   void add_start(csa_station const& station, time initial_duration) {
     // Ready for departure at station at time:
@@ -63,7 +66,7 @@ struct csa_profile_search {
     arrival_time_[station.id_].push_front(
         std::make_pair(search_interval_.begin_,
                        array_maker<time, MAX_TRANSFERS + 1>::make_array(
-                           search_interval_.end_)));
+                           search_interval_.begin_)));
   }
 
   void set_final_footpaths(csa_station const& target_station) {
@@ -151,31 +154,13 @@ struct csa_profile_search {
     return x_has_better;
   }
 
-  static bool dominates(std::pair<time, arrival_times> const& x,
-                        std::pair<time, arrival_times> const& y) {
-    bool x_has_better = time_comp(x.first, y.first);
-
-    if (!time_comp(y.first, x.first)) {
-      for (auto i = 0; i < x.second.size(); ++i) {
-        if (time_comp(x.second[i], y.second[i])) {
-          x_has_better = true;
-        } else if (time_comp(y.second[i], x.second[i])) {
-          return false;
-        }
-      }
-
-      return x_has_better;
-    } else {
-      return false;
-    }
-  }
-
   static bool is_dominated_in(
       std::pair<time, arrival_times> const& pair,
       std::list<std::pair<time, arrival_times>> const& list) {
     return std::any_of(list.begin(), list.end(), [&](auto const& other) {
-      return dominates(other, pair) || (time_comp(pair.first, other.first) &&
-                                        dominates(other.second, pair.second));
+      return other.second == pair.second ||
+             (time_comp(pair.first, other.first) &&
+              dominates(other.second, pair.second));
     });
   }
 
@@ -212,6 +197,20 @@ struct csa_profile_search {
     return time_comp(p1.first, p2.first);
   }
 
+  static void print_dep_arr(std::pair<time, arrival_times> const& p) {
+    std::cout << "Departure: " << p.first << std::endl;
+    std::cout << "Arrivals: ";
+    for (auto const& t : p.second) {
+      std::cout << t << ", ";
+    }
+    std::cout << std::endl;
+  }
+
+  static std::string station_str(csa_station const& s) {
+    if (s.station_ptr_ == nullptr) return "";
+    return s.station_ptr_->name_.str();
+  }
+
   void add_arrival_time(std::pair<time, arrival_times> const& new_pair,
                         csa_station const& station) {
     auto& arrival_time = arrival_time_[station.id_];
@@ -221,24 +220,45 @@ struct csa_profile_search {
         insert_loc, std::make_pair(new_pair.first,
                                    min(new_pair.second, insert_loc->second)));
 
-    if (inserted != arrival_time.begin()) {
-      // Delete all dominated pairs departing earlier than current
-      for (auto it = std::make_reverse_iterator(inserted);
-           it != std::rend(arrival_time);) {
-        if (dominates(inserted->second, it->second)) {
-          // This might be wrong
-          it = std::make_reverse_iterator(arrival_time.erase(it.base()));
-        } else {
-          ++it;
-        }
+    // Delete all dominated or same pairs departing earlier than current
+    for (auto it = std::make_reverse_iterator(inserted);
+         it != std::rend(arrival_time);) {
+      if (inserted->second == it->second ||
+          dominates(inserted->second, it->second)) {
+        // This might be wrong
+        /*
+        std::cout << "Deleted earlier from profile of " << station_str(station)
+                  << " : " << std::endl;
+        print_dep_arr(*it);
+        std::cout << "For pair: " << std::endl;
+        print_dep_arr(*inserted);
+        std::cout << "\n\n" << std::endl;
+         */
+        utl::verify_ex(
+            it->second == std::next(it).base()->second &&
+                it->first == std::next(it).base()->first,
+            std::runtime_error{"Not deleting the thing we want to delete"});
+        it = std::make_reverse_iterator(
+            arrival_time.erase(std::next(it).base()));
+      } else {
+        ++it;
       }
     }
 
-    // Delete all dominated pairs departing at the same time as current
-    for (auto it = insert_loc; it != std::end(arrival_time);) {
-      if (it->first != inserted->first) {
+    // Delete all dominated or same pairs departing at the same time as current
+    for (auto it = std::next(inserted); it != std::end(arrival_time);) {
+      if (inserted->first != it->first) {
         break;
-      } else if (dominates(inserted->second, it->second)) {
+      } else if (inserted->second == it->second ||
+                 dominates(inserted->second, it->second)) {
+        /*
+        std::cout << "Deleted same time from profile of "
+                  << station_str(station) << " : " << std::endl;
+        print_dep_arr(*it);
+        std::cout << "For pair: " << std::endl;
+        print_dep_arr(*inserted);
+        std::cout << "\n\n" << std::endl;
+         */
         it = arrival_time.erase(it);
       } else {
         ++it;
@@ -252,11 +272,13 @@ struct csa_profile_search {
                                 ? from_station.incoming_footpaths_
                                 : from_station.footpaths_;
     for (auto const& fp : footpaths) {
+      auto const& fp_from =
+          Dir == search_dir::FWD ? fp.from_station_ : fp.to_station_;
       auto const transfer_time = Dir == search_dir::FWD
                                      ? station_arrival - fp.duration_
                                      : station_arrival + fp.duration_;
       add_arrival_time(std::make_pair(transfer_time, best_arrival_times),
-                       from_station);
+                       tt_.stations_[fp_from]);
     }
   }
 
@@ -266,16 +288,15 @@ struct csa_profile_search {
 
     // Assume the connections are sorted by increasing c.departure_time
     csa_connection const earliest_possible_con{search_interval_.begin_};
-    csa_connection const latest_possible_con{search_interval_.end_};
 
-    auto const range_start =
-        std::lower_bound(rbegin(connections), rend(connections),
-                         latest_possible_con, connection_is_later);
+    auto const range_start = std::rbegin(connections);
 
     auto const range_end =
         std::upper_bound(rbegin(connections), rend(connections),
                          earliest_possible_con, connection_is_later);
 
+    auto const invalid_arrivals =
+        array_maker<time, MAX_TRANSFERS + 1>::make_array(INVALID);
     // Run algorithm
     for (auto it = range_start; it != range_end; ++it) {
       auto const& con = *it;
@@ -289,15 +310,21 @@ struct csa_profile_search {
       auto const departure =
           Dir == search_dir::FWD ? con.departure_ : con.arrival_;
 
+      bool const out_allowed = Dir == search_dir::FWD ? con.to_out_allowed_ : con.from_in_allowed_;
+      bool const in_allowed = Dir == search_dir::FWD ? con.from_in_allowed_ : con.to_out_allowed_;
+
+      // if con.to_out_allowed_
       auto const time_walking = get_time_walking(to_station, arrival);
       auto const& time_trip = trip_reachable_[con.trip_];
+      // if con.to_out_allowed_
       auto const time_transfer = get_time_transfer(to_station, arrival);
 
       auto const best_pair = std::make_pair(
           departure, min(time_walking, time_trip, time_transfer));
       auto const& best_arrival_times = best_pair.second;
-
-      if (!is_dominated_in(best_pair, arrival_time_[from_station])) {
+      // if con.from_in_allowed_
+      if (best_pair.second != invalid_arrivals &&
+          !is_dominated_in(best_pair, arrival_time_[from_station])) {
         expand_footpaths(tt_.stations_[from_station], departure,
                          best_arrival_times);
       }
@@ -317,6 +344,29 @@ struct csa_profile_search {
         tt_, start_times_, target_stations_, arrival_time_, trip_reachable_,
         final_footpaths_);
 
+    if (arrival_time_[start_station.id_].size() != 1) {
+      std::cout << station_str(start_station) << std::endl;
+      for (auto const& p : arrival_time_[start_station.id_]) {
+        if (p.first != INVALID) {
+          print_dep_arr(p);
+          std::cout << std::endl;
+        }
+      }
+      std::cout << "\n\n" << std::endl;
+    }
+
+
+    for (auto const& s : tt_.stations_) {
+      if (station_str(s) == "Kalkriese Kreuzung Ellerholz, Bramsche") {
+        for (auto const& p : arrival_time_[s.id_]) {
+          if (p.first != INVALID) {
+            print_dep_arr(p);
+            std::cout << std::endl;
+          }
+        }
+      }
+    }
+
     /*
      * Go through profiles in reverse order, always saving the earliest arrival
      * with each number of transfers. Because the latest arrivals are in the
@@ -329,16 +379,20 @@ struct csa_profile_search {
     for (auto it = std::next(std::rbegin(arr_time)); it != std::rend(arr_time);
          ++it) {
       auto const& [dep, arrs] = *it;
-      for (auto i = 0; i < arrs.size(); ++i) {
-        auto const arr = arrs[i];
-        if (time_comp(arr, min_reconstructed[i])) {
-          auto& journey = journeys.emplace_back(Dir, dep, arr, i, nullptr);
-          journey.start_station_ = &start_station;
-          recon.extract_journey(journey);
-          min_reconstructed[i] = arr;
-          for (auto j = i + 1; j < arrs.size(); ++j) {
-            if (time_comp(arr, min_reconstructed[j])) {
-              min_reconstructed[j] = arr;
+      if (time_comp(dep, search_interval_.end_) || dep == search_interval_.end_) {
+        for (auto i = 0; i < arrs.size(); ++i) {
+          auto const arr = arrs[i];
+          if (time_comp(arr, min_reconstructed[i])) {
+            auto& journey = journeys.emplace_back(Dir, dep, arr, i, nullptr);
+            journey.start_station_ = &start_station;
+            std::cout << "Got journey with " << i << " transfers" << std::endl;
+            recon.extract_journey(journey);
+            std::cout << "Got journey " << std::endl;
+            min_reconstructed[i] = arr;
+            for (auto j = i + 1; j < arrs.size(); ++j) {
+              if (time_comp(arr, min_reconstructed[j])) {
+                min_reconstructed[j] = arr;
+              }
             }
           }
         }

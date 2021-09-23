@@ -106,9 +106,9 @@ template <search_dir Dir, typename Cont, typename TimeType>
 auto get_pair_departing_after(Cont const& cont, TimeType limit) {
   return find_item_location(cont, limit, [](auto const& pair, auto const t) {
     if constexpr (Dir == search_dir::FWD) {
-      return pair.first < t;
+      return pair.first <= t;
     } else {
-      return pair.first > t;
+      return pair.first >= t;
     }
   });
 }
