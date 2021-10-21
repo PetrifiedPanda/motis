@@ -45,6 +45,9 @@ struct csa_profile_search {
   }
 
   void add_start(csa_station const& station, time initial_duration) {
+    utl::verify(initial_duration == 0,
+                "CSA Profile: initial_duration expected to be 0 but was {}",
+                initial_duration);
     // Ready for departure at station at time:
     // start time + initial_duration (Dir == search_dir::FWD)
     // start time - initial_duration (Dir == search_dir::BWD)
@@ -310,8 +313,14 @@ struct csa_profile_search {
       auto const departure =
           Dir == search_dir::FWD ? con.departure_ : con.arrival_;
 
-      bool const out_allowed = Dir == search_dir::FWD ? con.to_out_allowed_ : con.from_in_allowed_;
-      bool const in_allowed = Dir == search_dir::FWD ? con.from_in_allowed_ : con.to_out_allowed_;
+      bool const out_allowed =
+          Dir == search_dir::FWD ? con.to_out_allowed_ : con.from_in_allowed_;
+      bool const in_allowed =
+          Dir == search_dir::FWD ? con.from_in_allowed_ : con.to_out_allowed_;
+
+      // TODO(root): use in_allowed and out_allowed
+      (void)out_allowed;
+      (void)in_allowed;
 
       // if con.to_out_allowed_
       auto const time_walking = get_time_walking(to_station, arrival);
@@ -355,7 +364,6 @@ struct csa_profile_search {
       std::cout << "\n\n" << std::endl;
     }
 
-
     for (auto const& s : tt_.stations_) {
       if (station_str(s) == "Kalkriese Kreuzung Ellerholz, Bramsche") {
         for (auto const& p : arrival_time_[s.id_]) {
@@ -379,7 +387,8 @@ struct csa_profile_search {
     for (auto it = std::next(std::rbegin(arr_time)); it != std::rend(arr_time);
          ++it) {
       auto const& [dep, arrs] = *it;
-      if (time_comp(dep, search_interval_.end_) || dep == search_interval_.end_) {
+      if (time_comp(dep, search_interval_.end_) ||
+          dep == search_interval_.end_) {
         for (auto i = 0; i < arrs.size(); ++i) {
           auto const arr = arrs[i];
           if (time_comp(arr, min_reconstructed[i])) {
