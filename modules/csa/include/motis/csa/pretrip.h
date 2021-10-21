@@ -204,11 +204,12 @@ struct pretrip_profile_search {
   template <typename CSASearch, typename Results>
   void collect_results(CSASearch& csa, Results& results) {
     if constexpr (std::is_same<CSASearch, motis::csa::cpu::csa_profile_search<
-        search_dir::FWD>>::value ||
+                                              search_dir::FWD>>::value ||
                   std::is_same<CSASearch, motis::csa::cpu::csa_profile_search<
-                      search_dir::BWD>>::value) {
+                                              search_dir::BWD>>::value) {
       for (auto const& start_idx : q_.meta_starts_) {
-        for (csa_journey& j : csa.get_results(tt_.stations_.at(start_idx), q_.include_equivalent_)) {
+        for (csa_journey& j : csa.get_results(tt_.stations_.at(start_idx),
+                                              q_.include_equivalent_)) {
           results.push_back(j);
         }
       }
